@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>puerta@nidi.to</title>
+    <link rel="stylesheet" href="https://cdn.rob.mx/css/fonts.css" />
+    <link rel="stylesheet" href="https://cdn.rob.mx/nidito/index.css" />
+    <link rel="stylesheet" href="/static/index.css" />
+  </head>
+  <body>
+    <header id="main-header">
+      <div class="container">
+        <h1>Puerta</h1>
+        <p>Ábrete sésamo</p>
+      </div>
+    </header>
+    <main class="container">
+      <form id="login" method="post" action="/api/login">
+        <span class="error"></span>
+        <label for="user">Usuario</label>
+        <input type="text" name="user" autocorrect="false"  />
+
+        <label for="password">Password</label>
+        <input type="password" name="password" />
+        <button id="auth" type="submit">Iniciar Sesión</button>
+      </form>
+    </main>
+    <script src="/static/login.js" async="async"></script>
+  </body>
+</html>

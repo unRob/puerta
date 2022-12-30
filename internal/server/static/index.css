@@ -1,0 +1,74 @@
+button {
+  background: rgba(255,255,255,.6);
+  font-family: "Aestetico", sans-serif;
+  font-weight: bold;
+  text-align: center;
+  display: block;
+  color: #c11145;
+  border: 5px solid #c11145;
+  transition: all ease-in-out .5s;
+}
+
+#rex {
+  font-size: 5em;
+  border-radius: 100%;
+  width: 75vw;
+  height: 75vw;
+  margin: .5em auto;
+  max-width: 50vh;
+  max-height: 50vh;
+  border-width: 10px;
+  padding: 0px;
+}
+
+#auth {
+  font-size: 1.6em;
+  padding: .4em 1em;
+  margin: 1em 0;
+  width: 100%;
+  max-width: 50vw;
+}
+
+button[disabled] {
+  filter:saturate(0);
+}
+
+#open.success button{
+  color: rgb(27, 163, 0);
+  border-color: rgb(27, 163, 0)
+}
+
+#open.requested button {
+  color: rgb(0, 76, 163);
+  border-color: rgb(0, 76, 163);
+}
+
+#open.failed button {
+  color: #fff;
+  background-color:  rgb(175, 39, 39);
+  border-color: rgb(126, 26, 26);
+}
+
+form {
+  display: block;
+}
+
+label {
+  font-family: "Aestetico", sans-serif;
+  font-size: 1.2em;
+  line-height: 1.8em;
+}
+
+input {
+  display: block;
+  font-family: "Fira Code", monospace;
+  font-size: 1.5em;
+  width: 100%;
+  max-width: 50vw;
+}
+
+@media screen and (max-width: 768px) {
+  input {
+    max-width: auto;
+  }
+}

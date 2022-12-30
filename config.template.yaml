@@ -1,0 +1,13 @@
+name: Casa de Alguien
+
+adapter:
+  kind: dry-run
+  ip: 192.168.1.256
+  username: nobody
+  device: -1
+
+http:
+  listen: 8000
+  domain: localhost
+
+db: ./puerta.db
