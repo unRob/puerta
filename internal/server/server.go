@@ -8,12 +8,14 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"time"
 
 	"git.rob.mx/nidito/puerta/internal/auth"
 	"git.rob.mx/nidito/puerta/internal/door"
 	"git.rob.mx/nidito/puerta/internal/errors"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/julienschmidt/httprouter"
+	"github.com/sirupsen/logrus"
 	"github.com/upper/db/v4"
 	"github.com/upper/db/v4/adapter/sqlite"
 )
@@ -23,6 +25,9 @@ var loginTemplate []byte
 
 //go:embed index.html
 var indexTemplate []byte
+
+//go:embed admin.html
+var adminTemplate []byte
 
 //go:embed static/*
 var staticFiles embed.FS
@@ -50,6 +55,41 @@ func ConfigDefaults(dbPath string) *Config {
 	}
 }
 
+type auditLog struct {
+	Timestamp    time.Time `db:"timestamp"`
+	User         string    `db:"user"`
+	SecondFactor bool      `db:"second_factor"`
+	Failure      string    `db:"failure"`
+	Err          string    `db:"error"`
+	Success      bool      `db:"success"`
+	IpAddress    string    `db:"ip_address"`
+	UserAgent    string    `db:"user_agent"`
+}
+
+func newAuditLog(r *http.Request, err error) *auditLog {
+	user := auth.UserFromContext(r)
+	ip := r.RemoteAddr
+	ua := r.Header.Get("user-agent")
+
+	al := &auditLog{
+		Timestamp:    time.Now(),
+		User:         user.Handle,
+		SecondFactor: user.Require2FA,
+		IpAddress:    ip,
+		UserAgent:    ua,
+	}
+
+	if err != nil {
+		al.Failure = err.Error()
+		if derr, ok := err.(door.Error); ok {
+			al.Err = derr.Name()
+			al.Failure = derr.Error()
+		}
+	}
+
+	return al
+}
+
 func CORS(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("Access-Control-Request-Method") != "" {
 		// Set CORS headers
@@ -63,9 +103,26 @@ func CORS(w http.ResponseWriter, r *http.Request) {
 }
 
 func rex(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	userName := r.Context().Value(auth.ContextUserName).(string)
+	var err error
+	user := r.Context().Value(auth.ContextUser).(*auth.User)
 
-	if err := door.RequestToEnter(_door, userName); err != nil {
+	defer func() {
+		_, sqlErr := _db.Collection("log").Insert(newAuditLog(r, err))
+		if sqlErr != nil {
+			logrus.Errorf("could not record error log: %s", sqlErr)
+		}
+	}()
+
+	err = user.IsAllowed(time.Now())
+	if err != nil {
+		logrus.Errorf("Denying rex to %s: %s", user.Name, err)
+		http.Error(w, "Access denied", http.StatusForbidden)
+		return
+	}
+
+	err = door.RequestToEnter(user.Name)
+
+	if err != nil {
 		message, code := errors.ToHTTP(err)
 		http.Error(w, message, code)
 		return
@@ -75,7 +132,6 @@ func rex(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 }
 
 var _db db.Session
-var _door door.Door
 
 func Initialize(config *Config) (http.Handler, error) {
 	router := httprouter.New()
@@ -94,8 +150,7 @@ func Initialize(config *Config) (http.Handler, error) {
 		return nil, err
 	}
 
-	_door, err = door.NewDoor(config.Adapter)
-	if err != nil {
+	if err := door.Connect(config.Adapter); err != nil {
 		return nil, err
 	}
 
@@ -111,7 +166,7 @@ func Initialize(config *Config) (http.Handler, error) {
 		return nil, err
 	}
 
-	am := auth.NewManager(wan, _door, _db)
+	am := auth.NewManager(wan, _db)
 
 	serverRoot, err := fs.Sub(staticFiles, "static")
 	if err != nil {
@@ -120,9 +175,16 @@ func Initialize(config *Config) (http.Handler, error) {
 
 	router.ServeFiles("/static/*filepath", http.FS(serverRoot))
 	router.GET("/login", renderTemplate(loginTemplate))
-	router.GET("/", am.Protected(renderTemplate(indexTemplate), true, false))
+	router.GET("/", am.RequireAuthOrRedirect(renderTemplate(indexTemplate), "/login"))
 	router.POST("/api/login", am.NewSession)
-	router.POST("/api/rex", am.Protected(rex, false, true))
+	router.POST("/api/rex", am.Enforce2FA(rex))
+	router.GET("/admin", am.RequireAdmin(renderTemplate(adminTemplate)))
+	router.GET("/api/user", am.RequireAdmin(listUsers))
+	// router.GET("/api/user/:id", am.RequireAdmin(getUser))
+	router.GET("/api/user/:id", getUser)
+	router.PUT("/api/user", am.RequireAdmin(am.Enforce2FA(createUser)))
+	router.POST("/api/user/:id", am.RequireAdmin(am.Enforce2FA(updateUser)))
+	router.DELETE("/api/user/:id", am.RequireAdmin(am.Enforce2FA(deleteUser)))
 
 	return am.Route(router), nil
 }

@@ -30,16 +30,26 @@ func (c *Credential) AsWebAuthn() webauthn.Credential {
 	return *c.wan
 }
 
+func UserFromContext(req *http.Request) *User {
+	u := req.Context().Value(ContextUser)
+
+	if u != nil {
+		return u.(*User)
+	}
+	return nil
+}
+
 type User struct {
-	ID          int           `db:"id"`
-	Handle      string        `db:"user"`
-	Name        string        `db:"name"`
-	Password    string        `db:"password"`
-	Schedule    *UserSchedule `db:"schedule,omitempty"`
-	Expires     *time.Time    `db:"expires,omitempty"`
-	Greeting    string        `db:"greeting"`
-	TTL         Duration      `db:"max_ttl"`
-	Require2FA  bool          `db:"second_factor"`
+	ID          int           `db:"id" json:"-"`
+	Handle      string        `db:"user" json:"user"`
+	Name        string        `db:"name" json:"name"`
+	Password    string        `db:"password" json:"password"`
+	Schedule    *UserSchedule `db:"schedule,omitempty" json:"schedule"`
+	Expires     *time.Time    `db:"expires,omitempty" json:"expires"`
+	Greeting    string        `db:"greeting" json:"greeting"`
+	TTL         *TTL          `db:"max_ttl,omitempty" json:"max_ttl"`
+	Require2FA  bool          `db:"second_factor" json:"second_factor"`
+	IsAdmin     bool          `db:"is_admin" json:"admin"`
 	credentials []*Credential
 }
 
@@ -92,7 +102,7 @@ func (u *User) FetchCredentials(sess db.Session) error {
 
 func (o *User) UnmarshalJSON(b []byte) error {
 	type alias User
-	xo := &alias{TTL: Duration(30 * 24 * time.Hour)}
+	xo := &alias{TTL: &DefaultTTL}
 	if err := json.Unmarshal(b, xo); err != nil {
 		return err
 	}
@@ -129,3 +139,5 @@ func (user *User) Login(password string) error {
 
 	return nil
 }
+
+var _ = db.Record(&User{})

@@ -4,10 +4,11 @@ importScripts(
 
 workbox.loadModule('workbox-strategies');
 
+
 self.addEventListener("install", event => {
   console.log("Service worker installed");
 
-  const urlsToCache = ["/", "app.js", "styles.css", "logo.svg"];
+  const urlsToCache = ["/login", "/", "index.css", "/index.js", "/login.js"];
   event.waitUntil(
     caches.open("pwa-assets")
     .then(cache => {
@@ -22,7 +23,7 @@ self.addEventListener("activate", event => {
 
 
 self.addEventListener('fetch', event => {
-  if (event.request.url.endsWith('.png')) {
+  if (event.request.url.endsWith('.js') || event.request.url.endsWith('.css')) {
     const cacheFirst = new workbox.strategies.CacheFirst();
     event.respondWith(cacheFirst.handle({request: event.request}));
   }

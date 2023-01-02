@@ -18,11 +18,11 @@ type mockDoor struct {
 	FailedToClose error
 }
 
-func NewMock(config map[string]any) Door {
+func NewMock(config map[string]any) (Door, error) {
 	logrus.Info("Initializing mock client")
 	return &mockDoor{
 		Status: false,
-	}
+	}, nil
 }
 
 func (md *mockDoor) IsOpen() (bool, error) {

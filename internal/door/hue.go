@@ -28,7 +28,7 @@ func init() {
 	_register("hue", NewHue)
 }
 
-func NewHue(config map[string]any) Door {
+func NewHue(config map[string]any) (Door, error) {
 
 	cfg := &HueConfig{
 		ip:       config["ip"].(string),
@@ -49,11 +49,11 @@ func NewHue(config map[string]any) Door {
 	if cfg.username != "" && cfg.device > -1 {
 		device, err := h.bridge.GetLight(cfg.device)
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 		h.device = device
 	}
-	return h
+	return h, nil
 }
 
 func (h *Hue) Setup(domain string) error {

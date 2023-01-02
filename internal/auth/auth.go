@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"time"
 
-	"git.rob.mx/nidito/puerta/internal/door"
 	"github.com/alexedwards/scs/v2"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/julienschmidt/httprouter"
@@ -21,25 +20,20 @@ import (
 type AuthContext string
 
 const (
-	ContextCookieName  AuthContext = "_puerta"
-	ContextSessionName AuthContext = "_rex"
-	ContextUserName    AuthContext = "auth-username"
-	ContextGreeting    AuthContext = "auth-greeting"
-	ContextDoor        AuthContext = "auth-door"
+	ContextCookieName AuthContext = "_puerta"
+	ContextUser       AuthContext = "_user"
 )
 
 type Manager struct {
 	db   db.Session
-	door door.Door
 	wan  *webauthn.WebAuthn
 	sess *scs.SessionManager
 }
 
-func NewManager(wan *webauthn.WebAuthn, door door.Door, db db.Session) *Manager {
+func NewManager(wan *webauthn.WebAuthn, db db.Session) *Manager {
 	sessionManager := scs.New()
 	sessionManager.Lifetime = 5 * time.Minute
 	return &Manager{
-		door: door,
 		db:   db,
 		wan:  wan,
 		sess: sessionManager,
@@ -101,89 +95,126 @@ func (am *Manager) NewSession(w http.ResponseWriter, req *http.Request, ps httpr
 	}
 }
 
-func (am *Manager) Protected(handler httprouter.Handle, redirect, enforce2FA bool) httprouter.Handle {
-
+func (am *Manager) withUser(handler httprouter.Handle) httprouter.Handle {
 	return func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-		ctx := req.Context()
-		var user *User
-		if ctxUser := ctx.Value(ContextUserName); ctxUser == nil {
-			cookie, err := req.Cookie(string(ContextCookieName))
-
-			if err != nil {
-				logrus.Debugf("no cookie value found in <%s>", req.Cookies())
-				if redirect {
-					http.Redirect(w, req, "/login", http.StatusTemporaryRedirect)
-				} else {
-					am.requestAuth(w, http.StatusUnauthorized)
-				}
-				return
+		ctxUser := req.Context().Value(ContextUser)
+		req = func() *http.Request {
+			if ctxUser != nil {
+				return req
 			}
 
+			cookie, err := req.Cookie(string(ContextCookieName))
+			if err != nil {
+				logrus.Debugf("no cookie for user found in jar <%s>", req.Cookies())
+				return req
+			}
+
+			session := &SessionUser{}
 			q := am.db.SQL().
 				Select("s.token as token, ", "u.*").
 				From("session as s").
 				Join("user as u").On("s.user = u.id").
 				Where(db.Cond{"s.token": cookie.Value})
 
-			session := &SessionUser{}
 			if err := q.One(&session); err != nil {
+				logrus.Debugf("no cookie found in DB for jar <%s>: %s", req.Cookies(), err)
 				w.Header().Add("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%d; Secure; Path=/;", ContextCookieName, "", -1))
-				if redirect {
-					http.Redirect(w, req, "/login", http.StatusSeeOther)
-				} else {
-					am.requestAuth(w, http.StatusUnauthorized)
+				return req
+			}
+
+			if session.Expired() {
+				logrus.Debugf("expired cookie found in DB for jar <%s>", req.Cookies())
+				w.Header().Add("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%d; Secure; Path=/;", ContextCookieName, "", -1))
+				err := am.db.Collection("session").Find(db.Cond{"token": cookie.Value}).Delete()
+				if err != nil {
+					logrus.Errorf("could not purge expired session from DB: %s", err)
 				}
-				return
+				return req
 			}
 
-			if err := session.User.IsAllowed(time.Now()); err != nil {
-				logrus.Errorf("Denying access to %s: %s", session.User.Name, err)
-				am.requestAuth(w, http.StatusForbidden)
-				return
-			}
+			return req.WithContext(context.WithValue(req.Context(), ContextUser, &session.User))
+		}()
 
-			req = req.WithContext(context.WithValue(ctx, ContextUserName, session.User.Name))
-			req = req.WithContext(context.WithValue(req.Context(), ContextGreeting, session.User.Greeting))
-			req = req.WithContext(context.WithValue(req.Context(), ContextDoor, am.door))
-			logrus.Debug("found allowed user")
-			user = &session.User
-		}
-
-		if enforce2FA && user.Require2FA {
-			logrus.Debug("Enforcing 2fa for request")
-			var err error
-			err = user.FetchCredentials(am.db)
-			if err != nil {
-				logrus.Errorf("Failed fetching credentials: %s", err.Error())
-				w.WriteHeader(http.StatusInternalServerError)
-			}
-
-			if len(user.credentials) == 0 {
-				err = am.WebAuthnRegister(user, req)
-			} else {
-				err = am.WebAuthnLogin(user, req)
-			}
-
-			if err != nil {
-				if wafc, ok := err.(WebAuthFlowChallenge); ok {
-					logrus.Debugf("Issuing challenge")
-					w.WriteHeader(200)
-					w.Header().Add("content-type", "application/json")
-					w.Write([]byte(wafc.Error()))
-					logrus.Debugf("Issued challenge")
-					return
-				}
-
-				logrus.Errorf("Failed during webauthn flow: %s", err.Error())
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-		}
 		handler(w, req, ps)
 	}
 }
 
-func (am *Manager) WebAuthnRegister(user *User, req *http.Request) error {
+func (am *Manager) RequireAuthOrRedirect(handler httprouter.Handle, target string) httprouter.Handle {
+	return am.withUser(func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+		if req.Context().Value(ContextUser) == nil {
+			http.Redirect(w, req, target, http.StatusTemporaryRedirect)
+			return
+		}
+
+		handler(w, req, ps)
+	})
+}
+
+func (am *Manager) Enforce2FA(handler httprouter.Handle) httprouter.Handle {
+	return am.withUser(func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+		if req.Context().Value(ContextUser) == nil {
+			am.requestAuth(w, http.StatusUnauthorized)
+			return
+		}
+
+		user := req.Context().Value(ContextUser).(*User)
+		if !user.Require2FA {
+			handler(w, req, ps)
+			return
+		}
+
+		logrus.Debug("Enforcing 2fa for request")
+		var err error
+		err = user.FetchCredentials(am.db)
+		if err != nil {
+			logrus.Errorf("Failed fetching credentials: %s", err.Error())
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		if len(user.credentials) == 0 {
+			err = am.WebAuthnRegister(req)
+		} else {
+			err = am.WebAuthnLogin(req)
+		}
+
+		if err != nil {
+			if wafc, ok := err.(WebAuthFlowChallenge); ok {
+				w.WriteHeader(200)
+				w.Header().Add("content-type", "application/json")
+				w.Write([]byte(wafc.Error()))
+				return
+			}
+
+			logrus.Errorf("Failed during webauthn flow: %s", err.Error())
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		handler(w, req, ps)
+	})
+}
+
+func (am *Manager) RequireAdmin(handler httprouter.Handle) httprouter.Handle {
+	return am.withUser(func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+		if req.Context().Value(ContextUser) == nil {
+			am.requestAuth(w, http.StatusUnauthorized)
+			return
+		}
+
+		user := req.Context().Value(ContextUser).(*User)
+
+		if !user.IsAdmin {
+			am.requestAuth(w, http.StatusUnauthorized)
+
+			return
+		}
+		handler(w, req, ps)
+	})
+}
+
+func (am *Manager) WebAuthnRegister(req *http.Request) error {
+	user := UserFromContext(req)
 	sd := am.sess.GetBytes(req.Context(), "wan-register")
 	if sd == nil {
 		logrus.Infof("Starting webauthn registration for %s", user.Name)
@@ -228,7 +259,8 @@ func (am *Manager) WebAuthnRegister(user *User, req *http.Request) error {
 	return err
 }
 
-func (am *Manager) WebAuthnLogin(user *User, req *http.Request) error {
+func (am *Manager) WebAuthnLogin(req *http.Request) error {
+	user := UserFromContext(req)
 	sd := am.sess.GetBytes(req.Context(), "rex")
 	if sd == nil {
 		logrus.Infof("Starting webauthn login flow for %s", user.Name)

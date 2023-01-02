@@ -3,7 +3,7 @@ module git.rob.mx/nidito/puerta
 go 1.18
 
 require (
-	git.rob.mx/nidito/chinampa v0.0.0-20230101000754-0d24a8007547
+	git.rob.mx/nidito/chinampa v0.0.0-20230102065449-d9b257e145ce
 	github.com/alexedwards/scs/v2 v2.5.0
 	github.com/amimof/huego v1.2.1
 	github.com/go-webauthn/webauthn v0.6.0

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>puerta@nidi.to</title>
+    <link rel="stylesheet" href="https://cdn.rob.mx/css/fonts.css" />
+    <link rel="stylesheet" href="https://cdn.rob.mx/nidito/index.css" />
+    <link rel="stylesheet" href="/static/index.css" />
+  </head>
+  <body>
+    <header id="main-header">
+      <div class="container">
+        <h1>Puerta</h1>
+        <p>Admin</p>
+      </div>
+    </header>
+    <main class="container">
+      <section id="create-user">
+        <h2>Crear usuario</h2>
+        <form id="create-user" method="post" action="/api/user">
+          <label for="user">Handle</label>
+          <input name="handle" placeholder="joao" autocorrect="off"/>
+
+          <label for="name">Nombre</label>
+          <input name="name" placeholder="João Gilberto" />
+
+          <label for="greeting">Greeting</label>
+          <input name="greeting" placeholder="Olá Joãzinho!" />
+
+          <label for="password">Password</label>
+          <input type="password" name="password" />
+
+          <label for="schedule">Horarios</label>
+          <input type="text" name="schedule" placeholder="days=1-5 hours=8-20:35" autocorrect="off"/>
+
+          <label for="expires">Expires</label>
+          <input type="datetime-local" name="expires" placeholder="2023-01-01T00:00:00Z" />
+
+          <label for="max_ttl">TTL</label>
+          <input type="text" name="max_ttl" placeholder="30d" autocorrect="off"/>
+
+          <label for="admin">Admin?</label>
+          <input type="checkbox" name="is_admin" />
+
+          <label for="second_factor">Requiere 2FA?</label>
+          <input type="checkbox" name="second_factor" />
+
+          <button id="create-user-submit" type="submit">Crear</button>
+        </form>
+      </section>
+
+      <section id="user-list">
+        <h2>Usuarios</h2>
+        <ul></ul>
+      </section>
+
+
+    </main>
+    <script type="module" src="/static/admin.js"></script>
+
+    <template id="user-info-panel">
+      <li class="user-info-panel {{ if .IsAdmin }}user-info-panel-admin{{ end }}">
+        <header>
+          <h3><slot name="name">{{ .Name }}</h3>
+          <code><pre>{{ .Handle }}</pre></code>
+          <button class="user-edit">Modificar</button>
+        </header>
+        <div class="user-info-panel-details">
+          <label for="name">Nombre</label>
+          <input name="name" value="" placeholder="João Gilberto" />
+
+          <label for="greeting">Greeting</label>
+          <input name="greeting" placeholder="Olá Joãzinho!" />
+
+          <label for="password">Password</label>
+          <input type="password" name="password" />
+
+          <label for="schedule">Horarios</label>
+          <input type="text" name="schedule" placeholder="days=1-5 hours=8-20:35" autocorrect="off"/>
+
+          <label for="expires">Expires</label>
+          <input type="datetime-local" name="expires" placeholder="2023-01-01T00:00:00Z" />
+
+          <label for="ttl">TTL</label>
+          <input type="text" name="max_ttl" placeholder="30d" autocorrect="off"/>
+
+          <label for="admin">Admin?</label>
+          <input type="checkbox" name="is_admin" />
+
+          <label for="admin">Requiere 2FA?</label>
+          <input type="checkbox" name="second_factor" />
+
+          <button class="user-delete">Eliminar</button>
+          <button class="user-save">Guardar cambios</button>
+        </div>
+      </li>
+    </template>
+  </body>
+</html>

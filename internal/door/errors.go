@@ -7,25 +7,39 @@ import (
 	"net/http"
 )
 
-type DoorCommunicationError struct {
+type ErrorCommunication struct {
 	during string
 	err    error
 }
 
-func (err *DoorCommunicationError) Error() string {
-	return fmt.Sprintf("ould not get door status while %s: %s", err.during, err.err.Error())
+func (err *ErrorCommunication) Error() string {
+	return fmt.Sprintf("could not get door status while %s: %s", err.during, err.err.Error())
 }
 
-func (err *DoorCommunicationError) Code() int {
+func (err *ErrorCommunication) Code() int {
 	return http.StatusInternalServerError
 }
 
-type DoorAlreadyOpen struct{}
+func (err *ErrorCommunication) Name() string {
+	return "communication-error"
+}
 
-func (err *DoorAlreadyOpen) Error() string {
+type ErrorAlreadyOpen struct{}
+
+func (err *ErrorAlreadyOpen) Error() string {
 	return "door is already open"
 }
 
-func (err *DoorAlreadyOpen) Code() int {
+func (err *ErrorAlreadyOpen) Code() int {
 	return http.StatusPreconditionFailed
+}
+
+func (err *ErrorAlreadyOpen) Name() string {
+	return "already-open"
+}
+
+type Error interface {
+	Error() string
+	Code() int
+	Name() string
 }

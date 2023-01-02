@@ -71,6 +71,10 @@ var userAddCommand = &command.Command{
 			Description: "a custom greeting for the user",
 			Default:     "",
 		},
+		"admin": {
+			Type:        "bool",
+			Description: "make this user an admin",
+		},
 	},
 	Action: func(cmd *command.Command) error {
 		config := cmd.Options["config"].ToValue().(string)
@@ -80,6 +84,7 @@ var userAddCommand = &command.Command{
 		schedule := cmd.Options["schedule"].ToString()
 		ttl := cmd.Options["ttl"].ToString()
 		greeting := cmd.Options["greeting"].ToString()
+		admin := cmd.Options["admin"].ToValue().(bool)
 
 		data, err := os.ReadFile(config)
 		if err != nil {
@@ -105,18 +110,15 @@ var userAddCommand = &command.Command{
 			return err
 		}
 
-		var ttlDuration auth.Duration
-		if err := ttlDuration.UnmarshalDB(ttl); err != nil {
-			return err
-		}
-
 		user := &auth.User{
 			Name:     cmd.Arguments[0].ToString(),
 			Password: string(password),
 			Handle:   cmd.Arguments[1].ToString(),
 			Greeting: greeting,
-			TTL:      ttlDuration,
+			IsAdmin:  admin,
 		}
+
+		*user.TTL = auth.TTL(ttl)
 
 		if schedule != "" {
 			user.Schedule = &auth.UserSchedule{}

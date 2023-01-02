@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/upper/db/v4"
 )
 
 func parseHour(src string) (float64, error) {
@@ -40,13 +41,17 @@ type UserSchedule struct {
 	hours []float64
 }
 
-func (d UserSchedule) MarshalDB() ([]byte, error) {
+func (d UserSchedule) MarshalDB() (any, error) {
 	return json.Marshal(d.src)
 }
 
-func (d *UserSchedule) UnmarshalDB(b []byte) error {
+func (d UserSchedule) MarshalJSON() ([]byte, error) {
+	return json.Marshal(d.src)
+}
+
+func (d *UserSchedule) UnmarshalDB(b any) error {
 	var v string
-	if err := json.Unmarshal(b, &v); err != nil {
+	if err := json.Unmarshal(b.([]byte), &v); err != nil {
 		return err
 	}
 
@@ -104,3 +109,6 @@ func (sch *UserSchedule) AllowedAt(t time.Time) bool {
 
 	return true
 }
+
+var _ = (db.Unmarshaler(&UserSchedule{}))
+var _ = (db.Marshaler(&UserSchedule{}))

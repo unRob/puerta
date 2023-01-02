@@ -24,12 +24,12 @@ type Wemo struct {
 	client   *http.Client
 }
 
-func NewWemo(config map[string]any) Door {
+func NewWemo(config map[string]any) (Door, error) {
 	logrus.Infof("Wemo client for %s starting", config["endpoint"])
 	return &Wemo{
 		endpoint: config["endpoint"].(string),
 		client:   &http.Client{Timeout: 4 * time.Second},
-	}
+	}, nil
 }
 
 const wemoBodyGet string = `<?xml version="1.0" encoding="utf-8"?>

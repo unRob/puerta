@@ -3,6 +3,7 @@
 package hue
 
 import (
+	"fmt"
 	"os"
 
 	"git.rob.mx/nidito/chinampa"
@@ -37,13 +38,18 @@ var setupHueCommand = &command.Command{
 		domain := cmd.Arguments[1].ToValue().(string)
 
 		logrus.Infof("Setting up with bridge at %s, app %s", ip, domain)
-		d := door.NewHue(map[string]any{
+		doorI, err := door.NewHue(map[string]any{
 			"ip":       ip,
 			"username": "",
 			"device":   -1,
-		}).(*door.Hue)
+		})
+		if err != nil {
+			return fmt.Errorf("could not connect to door: %s", err)
+		}
 
-		return d.Setup(os.Args[2])
+		adapter := doorI.(*door.Hue)
+
+		return adapter.Setup(os.Args[2])
 	},
 }
 
@@ -74,12 +80,16 @@ var testHueCommand = &command.Command{
 		device := cmd.Arguments[2].ToValue().(string)
 
 		logrus.Infof("Testing bridge at %s, username %s, device %s", ip, username, device)
-		d := door.NewHue(map[string]any{
+
+		err := door.Connect(map[string]any{
+			"adapter":  "hue",
 			"ip":       ip,
 			"username": username,
 			"device":   device,
 		})
-
-		return door.RequestToEnter(d, "test")
+		if err != nil {
+			return fmt.Errorf("could not connect to door: %s", err)
+		}
+		return door.RequestToEnter("test")
 	},
 }

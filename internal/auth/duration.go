@@ -8,16 +8,14 @@ import (
 	"time"
 )
 
-type Duration time.Duration
+var DefaultTTL = TTL("30d")
 
-func (d Duration) MarshalDB() (any, error) {
-	return time.Duration(d).String(), nil
-}
+type TTL string
 
-func (d *Duration) UnmarshalDB(value any) error {
-	str := value.(string)
-	suffix := str[len(str)-1]
+func (ttl TTL) ToDuration() (res time.Duration, err error) {
+	suffix := ttl[len(ttl)-1]
 
+	toParse := string(ttl)
 	if suffix == 'd' || suffix == 'w' || suffix == 'M' {
 		multiplier := 1
 		switch suffix {
@@ -28,29 +26,32 @@ func (d *Duration) UnmarshalDB(value any) error {
 		case 'M':
 			multiplier = 24 * 7 * 30
 		default:
-			return fmt.Errorf("unknown suffix for time duration %s", string(suffix))
+			err = fmt.Errorf("unknown suffix for time duration %s", string(suffix))
+			return
 		}
 
-		str = str[0 : len(str)-1]
-		days, err := strconv.Atoi(str)
+		toParse = toParse[0 : len(toParse)-1]
+		var days int
+		days, err = strconv.Atoi(toParse)
 		if err != nil {
-			return err
+			return
 		}
 
-		str = fmt.Sprintf("%dh", days*multiplier)
+		toParse = fmt.Sprintf("%dh", days*multiplier)
 	}
-	tmp, err := time.ParseDuration(str)
-	if err != nil {
-		return err
-	}
-	*d = Duration(tmp)
-	return nil
+	res, err = time.ParseDuration(toParse)
+	return
 }
 
-func (d *Duration) FromNow() time.Time {
-	return time.Now().Add(time.Duration(*d))
+func (ttl *TTL) FromNow() time.Time {
+	d, _ := ttl.ToDuration()
+	return time.Now().Add(d)
 }
 
-func (d *Duration) Seconds() int {
-	return int(time.Duration(*d).Seconds())
+func (ttl *TTL) Seconds() int {
+	d, _ := ttl.ToDuration()
+	return int(d.Seconds())
 }
+
+// var _ = (db.Unmarshaler(&TTL{}))
+// var _ = (db.Marshaler(&TTL{}))

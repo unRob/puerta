@@ -13,9 +13,10 @@ import (
 var (
 	isOpening bool
 	statusMu  sync.Mutex
+	Active    Door
 )
 
-type newDoorFunc func(map[string]any) Door
+type newDoorFunc func(map[string]any) (Door, error)
 
 var adapters = &struct {
 	factories map[string]newDoorFunc
@@ -42,20 +43,20 @@ func setStatus(status bool) {
 }
 
 // RequestToEnter opens the door unless it's already open or opening
-func RequestToEnter(door Door, username string) error {
+func RequestToEnter(username string) error {
 	statusMu.Lock()
 	if isOpening {
 		defer statusMu.Unlock()
-		return &DoorCommunicationError{"checking status", fmt.Errorf("Door is busy processing another request")}
+		return &ErrorCommunication{"checking status", fmt.Errorf("Door is busy processing another request")}
 	}
 
-	isOpen, err := door.IsOpen()
+	isOpen, err := Active.IsOpen()
 	if err != nil {
 		statusMu.Unlock()
-		return &DoorCommunicationError{"checking status", err}
+		return &ErrorCommunication{"checking status", err}
 	} else if isOpen {
 		statusMu.Unlock()
-		return &DoorAlreadyOpen{}
+		return &ErrorAlreadyOpen{}
 	}
 
 	// okay, we're triggering an open and preventing others
@@ -66,11 +67,11 @@ func RequestToEnter(door Door, username string) error {
 
 	errors := make(chan error, 2)
 	done := make(chan bool)
-	go door.Open(errors, done)
+	go Active.Open(errors, done)
 
 	if err = <-errors; err != nil {
 		setStatus(false)
-		return &DoorCommunicationError{"opening", err}
+		return &ErrorCommunication{"opening", err}
 	}
 
 	logrus.Infof("Door opened for %s", username)
@@ -94,16 +95,17 @@ func RequestToEnter(door Door, username string) error {
 	return nil
 }
 
-func NewDoor(config map[string]any) (Door, error) {
+func Connect(config map[string]any) (err error) {
 	adapterName, hasAdapter := config["kind"]
 	if !hasAdapter {
-		return nil, fmt.Errorf("missing DOOR_ADAPTER")
+		return fmt.Errorf("missing DOOR_ADAPTER")
 	}
 
 	factory, exists := adapters.factories[adapterName.(string)]
 	if !exists {
-		return nil, fmt.Errorf("unknown DOOR_ADAPTER \"%s\", not one of [%s]", adapterName, strings.Join(adapters.names, ","))
+		return fmt.Errorf("unknown DOOR_ADAPTER \"%s\", not one of [%s]", adapterName, strings.Join(adapters.names, ","))
 	}
 
-	return factory(config), nil
+	Active, err = factory(config)
+	return err
 }
