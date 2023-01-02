@@ -41,15 +41,15 @@ func UserFromContext(req *http.Request) *User {
 
 type User struct {
 	ID          int           `db:"id" json:"-"`
-	Handle      string        `db:"user" json:"user"`
+	Handle      string        `db:"handle" json:"handle"`
 	Name        string        `db:"name" json:"name"`
-	Password    string        `db:"password" json:"password"`
+	Password    string        `db:"password" json:"-"`
 	Schedule    *UserSchedule `db:"schedule,omitempty" json:"schedule"`
 	Expires     *time.Time    `db:"expires,omitempty" json:"expires"`
 	Greeting    string        `db:"greeting" json:"greeting"`
 	TTL         *TTL          `db:"max_ttl,omitempty" json:"max_ttl"`
 	Require2FA  bool          `db:"second_factor" json:"second_factor"`
-	IsAdmin     bool          `db:"is_admin" json:"admin"`
+	IsAdmin     bool          `db:"is_admin" json:"is_admin"`
 	credentials []*Credential
 }
 
@@ -140,4 +140,6 @@ func (user *User) Login(password string) error {
 	return nil
 }
 
+// implement interfaces
 var _ = db.Record(&User{})
+var _ = webauthn.User(&User{})

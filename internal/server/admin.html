@@ -18,7 +18,7 @@
       </div>
     </header>
     <main class="container">
-      <section id="create-user">
+      <section id="create-user" style="display:none">
         <h2>Crear usuario</h2>
         <form id="create-user" method="post" action="/api/user">
           <label for="user">Handle</label>
@@ -61,14 +61,13 @@
     </main>
     <script type="module" src="/static/admin.js"></script>
 
-    <template id="user-info-panel">
-      <li class="user-info-panel {{ if .IsAdmin }}user-info-panel-admin{{ end }}">
+    <template id="user-info-panel"><li class="user-info-panel">
         <header>
-          <h3><slot name="name">{{ .Name }}</h3>
-          <code><pre>{{ .Handle }}</pre></code>
+          <h3><slot name="name">Alguien</h3>
+          <code><pre>alguien</pre></code>
           <button class="user-edit">Modificar</button>
         </header>
-        <div class="user-info-panel-details">
+        <form action="/api/user/:id" class="user-info-panel-details">
           <label for="name">Nombre</label>
           <input name="name" value="" placeholder="João Gilberto" />
 
@@ -95,8 +94,7 @@
 
           <button class="user-delete">Eliminar</button>
           <button class="user-save">Guardar cambios</button>
-        </div>
-      </li>
-    </template>
+        </form>
+      </li></template>
   </body>
 </html>
