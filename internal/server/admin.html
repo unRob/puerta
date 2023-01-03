@@ -9,29 +9,111 @@
     <link rel="stylesheet" href="https://cdn.rob.mx/css/fonts.css" />
     <link rel="stylesheet" href="https://cdn.rob.mx/nidito/index.css" />
     <link rel="stylesheet" href="/static/index.css" />
+    <style>
+    #user-list {
+      display: flex;
+      padding: 0;
+      margin: 0;
+    }
+
+    #main-nav a {
+      color: #fff
+    }
+
+    user-info-panel {
+      padding: .5em;
+      border: 1px solid #c11145;
+      border-radius: 5px;
+      box-sizing: border-box;
+      width: 30%;
+      margin-right: 3%;
+    }
+
+    rex-record {
+      display:table-row;
+    }
+
+    td, th {
+      width: 100%;
+    }
+    </style>
   </head>
   <body>
     <header id="main-header">
       <div class="container">
         <h1>Puerta</h1>
-        <p>Admin</p>
+        <nav id="main-nav">
+          <a class="nav-item" href="#invitades">Invitades</a>
+          <a class="nav-item" href="#crear">Crear Invitade</a>
+          <a class="nav-item" href="#registro">Registro</a>
+        </nav>
       </div>
     </header>
     <main class="container">
-      <section id="create-user" style="display:none">
-        <h2>Crear usuario</h2>
+      <section id="invitades" class="hidden">
+        <h2>Invitades</h2>
+        <ul id="user-list"></ul>
+        <template id="user-info-panel">
+          <style>
+            @import "/static/index.css";
+
+            .user-info-panel {
+              list-style: none;
+
+            }
+          </style>
+          <li class="user-info-panel">
+            <header>
+              <h3>Alguien</h3>
+              <code><pre>alguien</pre></code>
+              <button class="user-edit">Modificar</button>
+            </header>
+            <form action="/api/user/:id" class="user-info-panel-details hidden">
+              <label for="name">Nombre</label>
+              <input name="name" value="" placeholder="João Gilberto" required />
+
+              <label for="greeting">Greeting</label>
+              <input name="greeting" placeholder="Olá Joãzinho!" />
+
+              <label for="password">Password</label>
+              <input type="password" name="password" />
+
+              <label for="schedule">Horarios</label>
+              <input type="text" name="schedule" placeholder="days=1-5 hours=8-20:35" autocorrect="off"/>
+
+              <label for="expires">Expires</label>
+              <input type="datetime-local" name="expires" placeholder="2023-01-01T00:00:00Z" />
+
+              <label for="ttl">TTL</label>
+              <input type="text" name="max_ttl" placeholder="30d" autocorrect="off"/>
+
+              <label for="admin">Admin?</label>
+              <input type="checkbox" name="is_admin" />
+
+              <label for="admin">Requiere 2FA?</label>
+              <input type="checkbox" name="second_factor" />
+
+              <button class="user-delete">Eliminar</button>
+              <button class="user-save">Guardar cambios</button>
+            </form>
+          </li>
+        </template>
+      </section>
+
+      <section id="crear" class="hidden">
+        <h2>Crear Invitade</h2>
         <form id="create-user" method="post" action="/api/user">
           <label for="user">Handle</label>
-          <input name="handle" placeholder="joao" autocorrect="off"/>
+          <input name="handle" placeholder="joao" autocorrect="off" required />
 
           <label for="name">Nombre</label>
-          <input name="name" placeholder="João Gilberto" />
+          <input name="name" placeholder="João Gilberto" required />
 
           <label for="greeting">Greeting</label>
           <input name="greeting" placeholder="Olá Joãzinho!" />
 
           <label for="password">Password</label>
-          <input type="password" name="password" />
+          <input type="password" name="password" required />
 
           <label for="schedule">Horarios</label>
           <input type="text" name="schedule" placeholder="days=1-5 hours=8-20:35" autocorrect="off"/>
@@ -52,49 +134,33 @@
         </form>
       </section>
 
-      <section id="user-list">
-        <h2>Usuarios</h2>
-        <ul></ul>
+      <section id="registro" class="hidden">
+        <h2>Entradas recientes</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>ts</th>
+              <th>nombre</th>
+              <th>status</th>
+              <th>2fa</th>
+              <th>ip</th>
+              <th>ua</th>
+            </tr>
+          </thead>
+          <tbody id="rex-records">
+          </tbody>
+        </table>
+        <template id="rex-record">
+          <style>
+            @import "/static/index.css";
+          </style>
+
+        </template>
       </section>
-
-
     </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/@teamhanko/hanko-webauthn@latest/dist/browser-global/hanko-webauthn.browser-global.js"></script>
+
     <script type="module" src="/static/admin.js"></script>
-
-    <template id="user-info-panel"><li class="user-info-panel">
-        <header>
-          <h3><slot name="name">Alguien</h3>
-          <code><pre>alguien</pre></code>
-          <button class="user-edit">Modificar</button>
-        </header>
-        <form action="/api/user/:id" class="user-info-panel-details">
-          <label for="name">Nombre</label>
-          <input name="name" value="" placeholder="João Gilberto" />
-
-          <label for="greeting">Greeting</label>
-          <input name="greeting" placeholder="Olá Joãzinho!" />
-
-          <label for="password">Password</label>
-          <input type="password" name="password" />
-
-          <label for="schedule">Horarios</label>
-          <input type="text" name="schedule" placeholder="days=1-5 hours=8-20:35" autocorrect="off"/>
-
-          <label for="expires">Expires</label>
-          <input type="datetime-local" name="expires" placeholder="2023-01-01T00:00:00Z" />
-
-          <label for="ttl">TTL</label>
-          <input type="text" name="max_ttl" placeholder="30d" autocorrect="off"/>
-
-          <label for="admin">Admin?</label>
-          <input type="checkbox" name="is_admin" />
-
-          <label for="admin">Requiere 2FA?</label>
-          <input type="checkbox" name="second_factor" />
-
-          <button class="user-delete">Eliminar</button>
-          <button class="user-save">Guardar cambios</button>
-        </form>
-      </li></template>
   </body>
 </html>

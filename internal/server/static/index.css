@@ -72,3 +72,8 @@ input {
     max-width: auto;
   }
 }
+
+
+.hidden {
+  display: none
+}

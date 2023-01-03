@@ -39,7 +39,6 @@ CREATE TABLE log(
   second_factor BOOLEAN NOT NULL,
   failure VARCHAR(255),
   error TEXT,
-  success boolean NOT NULL,
   ip_address varchar(255) NOT NULL,
   user_agent varchar(255) NOT NULL
 );

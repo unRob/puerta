@@ -1,11 +1,15 @@
 const button = document.querySelector("#open button")
 const form = document.querySelector("#open")
-const { create: createCredentials, get: getCredentials } = hankoWebAuthn;
+import * as webauthn from "./webauthn.js"
 
-async function RequestToEnter() { 
+// const host = document.location.protocol + "//" + document.location.host
+const host = "http://localhost:8081"
+
+async function RequestToEnter() {
   console.debug("requesting to enter")
-  let response = await window.fetch(`/api/rex`, {
+  let response = await webauthn.withAuth(`${host}/api/rex`, {
     method: 'POST',
+    credentials: "include"
   })
 
   if (!response.ok) {
@@ -25,80 +29,13 @@ async function RequestToEnter() {
     json = await response.json()
   } catch {}
 
-  if (json.webauthn) {
-    try {
-      if (json.webauthn == "register") {
-        await register(json.data)
-      } else if (json.webauthn == "login"){
-        await login(json.data)
-      }
-    } catch(err) {
-      console.error("webauthn failure", err)
-    }
-  } else if (json.status == "ok") {
+  if (json.status == "ok") {
     console.debug("Door opened")
   }
 
   return response.status
 }
 
-async function register(data) {
-  console.debug("creating credentials")
-  const credential = await createCredentials(data);
-
-  console.debug(`exchanging credential: ${JSON.stringify(credential)}`)
-  let response = await window.fetch(`/api/rex`, {
-    method: 'POST',
-    headers: {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(credential)
-  })
-
-  console.debug("sent credential creation request")
-
-  if (!response.ok) {
-    let message = response.statusText
-    try {
-      let json = await response.json()
-      if (json.message) {
-        message = `${message}: ${json.message}`
-      }
-    } catch {}
-
-    throw new Error(message);
-  }
-}
-
-async function login(data) {
-  console.debug("fetching passkey")
-  const credential = await getCredentials(data);
-
-  console.debug(`exchanging credential: ${JSON.stringify(credential)}`)
-  let response = await window.fetch(`/api/rex`, {
-    method: 'POST',
-    headers: {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(credential)
-  })
-
-  console.debug("sent passkey")
-
-  if (!response.ok) {
-    let message = response.statusText
-    try {
-      let json = await response.json()
-      if (json.message) {
-        message = `${message}: ${json.message}`
-      }
-    } catch {}
-
-    throw new Error(message);
-  }
-}
 
 function clearStatus() {
   form.classList.remove("failed")

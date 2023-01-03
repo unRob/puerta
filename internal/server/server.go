@@ -56,14 +56,14 @@ func ConfigDefaults(dbPath string) *Config {
 }
 
 type auditLog struct {
-	Timestamp    time.Time `db:"timestamp"`
-	User         string    `db:"user"`
-	SecondFactor bool      `db:"second_factor"`
-	Failure      string    `db:"failure"`
-	Err          string    `db:"error"`
-	Success      bool      `db:"success"`
-	IpAddress    string    `db:"ip_address"`
-	UserAgent    string    `db:"user_agent"`
+	Timestamp    string `db:"timestamp" json:"timestamp"`
+	User         string `db:"user" json:"user"`
+	SecondFactor bool   `db:"second_factor" json:"second_factor"`
+	Failure      string `db:"failure" json:"failure"`
+	Err          string `db:"error" json:"error"`
+	Success      bool   `db:"success" json:"success"`
+	IpAddress    string `db:"ip_address" json:"ip_address"`
+	UserAgent    string `db:"user_agent" json:"user_agent"`
 }
 
 func newAuditLog(r *http.Request, err error) *auditLog {
@@ -72,7 +72,7 @@ func newAuditLog(r *http.Request, err error) *auditLog {
 	ua := r.Header.Get("user-agent")
 
 	al := &auditLog{
-		Timestamp:    time.Now(),
+		Timestamp:    time.Now().UTC().Format(time.RFC3339),
 		User:         user.Handle,
 		SecondFactor: user.Require2FA,
 		IpAddress:    ip,
@@ -90,12 +90,37 @@ func newAuditLog(r *http.Request, err error) *auditLog {
 	return al
 }
 
+func allowCORS(handler httprouter.Handle) httprouter.Handle {
+	return func(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+		header := w.Header()
+		header.Set("Access-Control-Allow-Methods", "GET,PUT,POST,DELETE")
+		header.Set("Access-Control-Allow-Origin", "http://localhost:8080")
+		header.Set("Access-Control-Allow-Credentials", "true")
+		header.Set("Access-Control-Allow-Headers", "content-type,webauthn")
+		header.Set("Access-Control-Expose-Headers", "webauthn")
+
+		if r.Method == http.MethodOptions && r.Header.Get("Access-Control-Request-Method") != "" {
+			// Set CORS headers
+			// Adjust status code to 204
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		if handler != nil {
+			handler(w, r, params)
+		}
+	}
+}
+
 func CORS(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("Access-Control-Request-Method") != "" {
 		// Set CORS headers
 		header := w.Header()
 		header.Set("Access-Control-Allow-Methods", r.Header.Get("Allow"))
-		header.Set("Access-Control-Allow-Origin", "")
+		header.Set("Access-Control-Allow-Origin", "http://localhost:8080")
+		header.Set("Access-Control-Allow-Credentials", "true")
+		header.Set("Access-Control-Allow-Headers", "content-type,webauthn")
+		header.Set("Access-Control-Expose-Headers", "webauthn")
 	}
 
 	// Adjust status code to 204
@@ -159,7 +184,7 @@ func Initialize(config *Config) (http.Handler, error) {
 	wan, err := webauthn.New(&webauthn.Config{
 		RPDisplayName: config.Name,
 		RPID:          config.HTTP.Domain,
-		RPOrigins:     []string{uri},
+		RPOrigins:     []string{uri, fmt.Sprintf("http://%s:%d", config.HTTP.Domain, 8080)},
 		// RPIcon:        "https://go-webauthn.local/logo.png",
 	})
 	if err != nil {
@@ -177,13 +202,15 @@ func Initialize(config *Config) (http.Handler, error) {
 	router.GET("/login", renderTemplate(loginTemplate))
 	router.GET("/", am.RequireAuthOrRedirect(renderTemplate(indexTemplate), "/login"))
 	router.POST("/api/login", am.NewSession)
-	router.POST("/api/rex", am.Enforce2FA(rex))
+	router.POST("/api/webauthn/register", am.RequireAuth(am.RegisterSecondFactor()))
+	router.POST("/api/rex", allowCORS(am.Enforce2FA(rex)))
 	router.GET("/admin", am.RequireAdmin(renderTemplate(adminTemplate)))
-	router.GET("/api/user", am.RequireAdmin(listUsers))
-	router.GET("/api/user/:id", am.RequireAdmin(getUser))
-	router.PUT("/api/user", am.RequireAdmin(am.Enforce2FA(createUser)))
-	router.POST("/api/user/:id", am.RequireAdmin(am.Enforce2FA(updateUser)))
-	router.DELETE("/api/user/:id", am.RequireAdmin(am.Enforce2FA(deleteUser)))
+	router.GET("/api/log", allowCORS(am.RequireAdmin(rexRecords)))
+	router.GET("/api/user", allowCORS(am.RequireAdmin(listUsers)))
+	router.GET("/api/user/:id", allowCORS(am.RequireAdmin(getUser)))
+	router.POST("/api/user", allowCORS(am.RequireAdmin(am.Enforce2FA(createUser))))
+	router.POST("/api/user/:id", allowCORS(am.RequireAdmin(am.Enforce2FA(updateUser))))
+	router.DELETE("/api/user/:id", allowCORS(am.RequireAdmin(am.Enforce2FA(deleteUser))))
 
 	return am.Route(router), nil
 }

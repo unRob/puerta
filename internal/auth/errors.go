@@ -3,6 +3,7 @@
 package auth
 
 import (
+	"encoding/base64"
 	"encoding/json"
 
 	"github.com/sirupsen/logrus"
@@ -45,6 +46,17 @@ func (c WebAuthFlowChallenge) Error() string {
 	}
 
 	return string(b)
+}
+
+func (c WebAuthFlowChallenge) Header() string {
+	b, err := json.Marshal(c.data)
+	if err != nil {
+		logrus.Errorf("Could not marshal data: %s", err)
+		logrus.Errorf("data: %s", c.data)
+		return ""
+	}
+
+	return c.flow + " " + base64.StdEncoding.EncodeToString([]byte(b))
 }
 
 func (c WebAuthFlowChallenge) Log() {

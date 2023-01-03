@@ -5,8 +5,6 @@ package server
 import (
 	"encoding/json"
 	"net/http"
-	"strconv"
-	"time"
 
 	"git.rob.mx/nidito/puerta/internal/auth"
 	"github.com/julienschmidt/httprouter"
@@ -43,53 +41,33 @@ func listUsers(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 }
 
 func userFromRequest(r *http.Request, user *auth.User) (*auth.User, error) {
-	r.ParseForm()
+	dec := json.NewDecoder(r.Body)
+	res := &auth.User{}
+	if err := dec.Decode(&res); err != nil {
+		return nil, err
+	}
+	logrus.Debugf("Unserialized user data: %v", res)
+
 	if user == nil {
-		user = &auth.User{}
+		user = &auth.User{
+			Handle: res.Handle,
+		}
 	}
 
-	isAdmin, err := strconv.ParseBool(r.FormValue("is_admin"))
-	if err != nil {
-		return nil, err
-	}
-	secondFactor, err := strconv.ParseBool(r.FormValue("second_factor"))
-	if err != nil {
-		return nil, err
-	}
+	user.Name = res.Name
+	user.Expires = res.Expires
+	user.Greeting = res.Greeting
+	user.IsAdmin = res.IsAdmin
+	user.Require2FA = res.Require2FA
+	user.Schedule = res.Schedule
+	user.TTL = res.TTL
 
-	user.Handle = r.FormValue("handle")
-	user.Name = r.FormValue("name")
-	user.Greeting = r.FormValue("greeting")
-	user.Require2FA = secondFactor
-	user.IsAdmin = isAdmin
-
-	if r.FormValue("password") != "" {
-		password, err := bcrypt.GenerateFromPassword([]byte(r.FormValue("password")), bcrypt.DefaultCost)
+	if res.Password != "" {
+		password, err := bcrypt.GenerateFromPassword([]byte(res.Password), bcrypt.DefaultCost)
 		if err != nil {
 			return nil, err
 		}
 		user.Password = string(password)
-	}
-
-	if r.Form.Has("schedule") {
-		schedule := &auth.UserSchedule{}
-		err := schedule.UnmarshalDB([]byte(r.FormValue("schedule")))
-		if err != nil {
-			return nil, err
-		}
-		user.Schedule = schedule
-	}
-
-	if r.Form.Has("expires") {
-		expires, err := time.Parse(time.RFC3339, r.FormValue("expires"))
-		if err != nil {
-			return nil, err
-		}
-		user.Expires = &expires
-	}
-
-	if r.Form.Has("max_ttl") {
-		*user.TTL = auth.TTL(r.FormValue("max_ttl"))
 	}
 
 	return user, nil
@@ -152,4 +130,15 @@ func deleteUser(w http.ResponseWriter, r *http.Request, params httprouter.Params
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func rexRecords(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+	records := []*auditLog{}
+	err := _db.Collection("log").Find().OrderBy("-timestamp").Limit(20).All(&records)
+	if err != nil {
+		sendError(w, err)
+		return
+	}
+
+	writeJSON(w, records)
 }

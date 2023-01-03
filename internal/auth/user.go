@@ -40,16 +40,16 @@ func UserFromContext(req *http.Request) *User {
 }
 
 type User struct {
-	ID          int           `db:"id" json:"-"`
-	Handle      string        `db:"handle" json:"handle"`
-	Name        string        `db:"name" json:"name"`
-	Password    string        `db:"password" json:"-"`
-	Schedule    *UserSchedule `db:"schedule,omitempty" json:"schedule"`
+	ID          int           `db:"id,omitempty" json:"-"`
 	Expires     *time.Time    `db:"expires,omitempty" json:"expires"`
 	Greeting    string        `db:"greeting" json:"greeting"`
-	TTL         *TTL          `db:"max_ttl,omitempty" json:"max_ttl"`
-	Require2FA  bool          `db:"second_factor" json:"second_factor"`
+	Handle      string        `db:"handle" json:"handle"`
 	IsAdmin     bool          `db:"is_admin" json:"is_admin"`
+	Name        string        `db:"name" json:"name"`
+	Password    string        `db:"password" json:"password"`
+	Require2FA  bool          `db:"second_factor" json:"second_factor"`
+	Schedule    *UserSchedule `db:"schedule,omitempty" json:"schedule,omitempty"`
+	TTL         *TTL          `db:"max_ttl,omitempty" json:"max_ttl,omitempty"`
 	credentials []*Credential
 }
 
@@ -108,6 +108,14 @@ func (o *User) UnmarshalJSON(b []byte) error {
 	}
 	*o = User(*xo)
 	return nil
+}
+
+func (u *User) MarshalJSON() ([]byte, error) {
+	// prevent calling ourselves by subtyping
+	type alias User
+	x := alias(*u)
+	x.Password = ""
+	return json.Marshal(x)
 }
 
 func (user *User) Expired() bool {

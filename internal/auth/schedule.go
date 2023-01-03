@@ -49,14 +49,8 @@ func (d UserSchedule) MarshalJSON() ([]byte, error) {
 	return json.Marshal(d.src)
 }
 
-func (d *UserSchedule) UnmarshalDB(b any) error {
-	var v string
-	if err := json.Unmarshal(b.([]byte), &v); err != nil {
-		return err
-	}
-
-	*d = UserSchedule{src: v}
-	for _, kv := range strings.Split(v, " ") {
+func (d *UserSchedule) Parse() error {
+	for _, kv := range strings.Split(d.src, " ") {
 		kvSlice := strings.Split(kv, "=")
 		key := kvSlice[0]
 		values := strings.Split(kvSlice[1], "-")
@@ -85,7 +79,31 @@ func (d *UserSchedule) UnmarshalDB(b any) error {
 			d.hours = []float64{from, until}
 		}
 	}
+	return nil
+}
 
+func (d *UserSchedule) UnmarshalDB(value any) error {
+	var src string
+	if err := json.Unmarshal(value.([]byte), &src); err != nil {
+		return err
+	}
+
+	parsed := UserSchedule{src: src}
+	if err := parsed.Parse(); err != nil {
+		return err
+	}
+
+	*d = parsed
+	return nil
+}
+
+func (d *UserSchedule) UnmarshalJSON(value []byte) error {
+	parsed := UserSchedule{src: string(value)}
+	if err := parsed.Parse(); err != nil {
+		return err
+	}
+
+	*d = parsed
 	return nil
 }
 
@@ -112,3 +130,5 @@ func (sch *UserSchedule) AllowedAt(t time.Time) bool {
 
 var _ = (db.Unmarshaler(&UserSchedule{}))
 var _ = (db.Marshaler(&UserSchedule{}))
+var _ = (json.Marshaler(&UserSchedule{}))
+var _ = (json.Unmarshaler(&UserSchedule{}))

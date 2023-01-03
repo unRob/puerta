@@ -13,6 +13,9 @@ var DefaultTTL = TTL("30d")
 type TTL string
 
 func (ttl TTL) ToDuration() (res time.Duration, err error) {
+	if ttl == "" {
+		return
+	}
 	suffix := ttl[len(ttl)-1]
 
 	toParse := string(ttl)
@@ -52,6 +55,3 @@ func (ttl *TTL) Seconds() int {
 	d, _ := ttl.ToDuration()
 	return int(d.Seconds())
 }
-
-// var _ = (db.Unmarshaler(&TTL{}))
-// var _ = (db.Marshaler(&TTL{}))
