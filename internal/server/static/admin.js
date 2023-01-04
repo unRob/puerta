@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright © 2022 Roberto Hidalgo <nidito@un.rob.mx>
 import * as webauthn from "./webauthn.js"
 
 const host = document.location.protocol + "//" + document.location.host

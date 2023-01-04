@@ -191,8 +191,6 @@ func Initialize(config *Config) (http.Handler, error) {
 		return nil, err
 	}
 
-	auth.Initialize(wan, _db)
-
 	serverRoot, err := fs.Sub(staticFiles, "static")
 	if err != nil {
 		log.Fatal(err)
@@ -216,7 +214,7 @@ func Initialize(config *Config) (http.Handler, error) {
 	router.POST("/api/user/:id", allowCORS(auth.RequireAdmin(auth.Enforce2FA(updateUser))))
 	router.DELETE("/api/user/:id", allowCORS(auth.RequireAdmin(auth.Enforce2FA(deleteUser))))
 
-	return auth.Route(router), nil
+	return auth.Route(wan, _db, router), nil
 }
 
 func renderTemplate(template []byte) httprouter.Handle {

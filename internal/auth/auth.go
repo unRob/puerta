@@ -21,14 +21,11 @@ var _db db.Session
 var _wan *webauthn.WebAuthn
 var _sess *scs.SessionManager
 
-func Initialize(wan *webauthn.WebAuthn, db db.Session) {
-	sessionManager := scs.New()
-	sessionManager.Lifetime = 5 * time.Minute
+func Route(wan *webauthn.WebAuthn, db db.Session, router http.Handler) http.Handler {
 	_db = db
 	_wan = wan
-}
-
-func Route(router http.Handler) http.Handler {
+	_sess = scs.New()
+	_sess.Lifetime = 5 * time.Minute
 	return _sess.LoadAndSave(router)
 }
 
@@ -47,7 +44,7 @@ func LoginHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params
 	password := req.FormValue("password")
 
 	user := &user.User{}
-	if err := _db.Get(user, db.Cond{"name": username}); err != nil {
+	if err := _db.Get(user, db.Cond{"handle": username}); err != nil {
 		err := &errors.InvalidCredentials{Status: http.StatusForbidden, Reason: fmt.Sprintf("User not found for name: %s (%s)", username, err)}
 		err.Log()
 		http.Error(w, err.Error(), err.Code())
