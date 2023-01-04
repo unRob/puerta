@@ -3,7 +3,7 @@
 import * as webauthnJSON from 'https://unpkg.com/@github/webauthn-json@2.0.2/dist/esm/webauthn-json.browser-ponyfill.js'
 const charsToEncode = /[\u007f-\uffff]/g;
 function JSONtob64(data) {
-  return btoa(encodeURIComponent(JSON.stringify(data).replace(charsToEncode, (c) => '\\u'+('000'+c.charCodeAt(0).toString(16)).slice(-4))))
+  return btoa(JSON.stringify(data).replace(charsToEncode, (c) => '\\u'+('000'+c.charCodeAt(0).toString(16)).slice(-4)))
 }
 
 function b64ToJSON(encoded) {
