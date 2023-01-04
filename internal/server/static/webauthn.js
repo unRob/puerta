@@ -66,12 +66,13 @@ async function register(challenge) {
   console.dir(parsed)
 
   console.info("webauthn: issuing credential creation request to browser")
-  let credential
-  try {
-    credential = await webauthnJSON.create(parsed);
-  } catch (err) {
-    console.error("sigh", err)
-    throw err
+  let credential = await webauthnJSON.create(parsed);
+  let missing = 4 - (credential.response.clientDataJSON.length % 4)
+  if (missing != 0) {
+    while (missing > 0) {
+      credential.response.clientDataJSON += "="
+      missing -= 1
+    }
   }
   console.debug(`webauthn: registering credentials with server: ${JSON.stringify(credential)}`)
 
@@ -108,6 +109,13 @@ async function login(challenge, target, config) {
 
   console.debug("webauthn: fetching stored client credentials")
   let credential = await webauthnJSON.get(parsed);
+  let missing = 4 - (credential.response.clientDataJSON.length % 4)
+  if (missing != 0) {
+    while (missing > 0) {
+      credential.response.clientDataJSON += "="
+      missing -= 1
+    }
+  }
 
   config.credentials = "include"
   config.headers = config.headers || {}
