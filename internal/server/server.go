@@ -37,7 +37,7 @@ type HTTPConfig struct {
 	// Listen is a hostname:port
 	Listen string `yaml:"listen"`
 	// Origin describes the http origins to allow
-	Origin string `yaml:"domain"`
+	Origin string `yaml:"origin"`
 }
 
 type Config struct {
@@ -53,7 +53,7 @@ func ConfigDefaults(dbPath string) *Config {
 		DB: dbPath,
 		HTTP: &HTTPConfig{
 			Listen: "localhost:8000",
-			Origin: "http://localhost:8000",
+			Origin: "localhost",
 		},
 	}
 }
@@ -71,6 +71,10 @@ type auditLog struct {
 func newAuditLog(r *http.Request, err error) *auditLog {
 	u := user.FromContext(r)
 	ip := r.RemoteAddr
+	xforward := r.Header.Get("X-Forwarded-For")
+	if xforward != "" {
+		ip = xforward
+	}
 	ua := r.Header.Get("user-agent")
 
 	al := &auditLog{
@@ -94,39 +98,27 @@ func newAuditLog(r *http.Request, err error) *auditLog {
 
 func allowCORS(handler httprouter.Handle) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
-		header := w.Header()
-		header.Set("Access-Control-Allow-Methods", "GET,PUT,POST,DELETE")
-		header.Set("Access-Control-Allow-Origin", "http://localhost:8080")
-		header.Set("Access-Control-Allow-Credentials", "true")
-		header.Set("Access-Control-Allow-Headers", "content-type,webauthn")
-		header.Set("Access-Control-Expose-Headers", "webauthn")
+		output := w.Header()
+		input := r.Header
 
-		if r.Method == http.MethodOptions && r.Header.Get("Access-Control-Request-Method") != "" {
-			// Set CORS headers
-			// Adjust status code to 204
-			w.WriteHeader(http.StatusOK)
-			return
+		if input.Get("Access-Control-Request-Method") != "" {
+			output.Set("Access-Control-Allow-Methods", input.Get("Allow"))
+			output.Set("Access-Control-Allow-Origin", r.Host)
+			output.Set("Access-Control-Allow-Credentials", "true")
+			output.Set("Access-Control-Allow-Headers", "content-type,webauthn")
+			output.Set("Access-Control-Expose-Headers", "webauthn")
+			if r.Method == http.MethodOptions {
+				// Set CORS headers
+				// Adjust status code to 204
+				w.WriteHeader(http.StatusOK)
+				return
+			}
 		}
 
 		if handler != nil {
 			handler(w, r, params)
 		}
 	}
-}
-
-func CORS(w http.ResponseWriter, r *http.Request) {
-	if r.Header.Get("Access-Control-Request-Method") != "" {
-		// Set CORS headers
-		header := w.Header()
-		header.Set("Access-Control-Allow-Methods", r.Header.Get("Allow"))
-		header.Set("Access-Control-Allow-Origin", "http://localhost:8080")
-		header.Set("Access-Control-Allow-Credentials", "true")
-		header.Set("Access-Control-Allow-Headers", "content-type,webauthn")
-		header.Set("Access-Control-Expose-Headers", "webauthn")
-	}
-
-	// Adjust status code to 204
-	w.WriteHeader(http.StatusNoContent)
 }
 
 func rex(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
@@ -162,7 +154,9 @@ var _db db.Session
 
 func Initialize(config *Config) (http.Handler, error) {
 	router := httprouter.New()
-	router.GlobalOPTIONS = http.HandlerFunc(CORS)
+	router.GlobalOPTIONS = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		allowCORS(nil)(w, r, nil)
+	})
 
 	db := sqlite.ConnectionURL{
 		Database: config.DB,
@@ -184,7 +178,7 @@ func Initialize(config *Config) (http.Handler, error) {
 	wan, err := webauthn.New(&webauthn.Config{
 		RPDisplayName: config.Name,
 		RPID:          config.HTTP.Origin,
-		RPOrigins:     []string{config.HTTP.Listen},
+		RPOrigins:     []string{config.HTTP.Origin},
 		// RPIcon:        "https://go-webauthn.local/logo.png",
 	})
 	if err != nil {
