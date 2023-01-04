@@ -182,7 +182,7 @@ function userFromForm(form) {
 async function UpdateUser(form) {
   const user = userFromForm(form)
 
-  let response = await webauthn.withAuth(host + form.getAttribute("action"), {
+  let response = await webauthn.withAuth(form.getAttribute("action"), {
     credentials: "include",
     method: "POST",
     body: JSON.stringify(user),
@@ -201,7 +201,7 @@ async function UpdateUser(form) {
 async function CreateUser(form) {
   const user = userFromForm(form)
 
-  let response = await webauthn.withAuth(host + form.getAttribute("action"), {
+  let response = await webauthn.withAuth(form.getAttribute("action"), {
     credentials: "include",
     method: "POST",
     body: JSON.stringify(user),
