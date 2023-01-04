@@ -55,7 +55,7 @@ var serverCommand = &command.Command{
 			return err
 		}
 
-		logrus.Infof("Listening on port %d", cfg.HTTP.Listen)
-		return http.ListenAndServe(fmt.Sprintf("localhost:%d", cfg.HTTP.Listen), router)
+		logrus.Infof("Listening at %s", cfg.HTTP.Listen)
+		return http.ListenAndServe(cfg.HTTP.Listen, router)
 	},
 }
