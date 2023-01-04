@@ -90,32 +90,33 @@ func createUser(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 }
 
 func getUser(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
-	var user *user.User
+	this := user.User{}
 	idString := params.ByName("id")
 
-	if err := _db.Get(user, db.Cond{"handle": idString}); err != nil {
+	if err := _db.Get(&this, db.Cond{"handle": idString}); err != nil {
 		sendError(w, err)
 		return
 	}
 
-	writeJSON(w, user)
+	writeJSON(w, this)
 }
 
 func updateUser(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
 	logrus.Infof("updating user: %s", params.ByName("id"))
-	var user *user.User
-	if err := _db.Get(user, db.Cond{"handle": params.ByName("id")}); err != nil {
+	user := user.User{}
+	if err := _db.Get(&user, db.Cond{"handle": params.ByName("id")}); err != nil {
+		logrus.Error(err)
 		http.NotFound(w, r)
 		return
 	}
 
-	user, err := userFromRequest(r, user)
+	modified, err := userFromRequest(r, &user)
 	if err != nil {
 		sendError(w, err)
 		return
 	}
 
-	if err := _db.Collection("user").UpdateReturning(user); err != nil {
+	if err := _db.Collection("user").UpdateReturning(modified); err != nil {
 		sendError(w, err)
 		return
 	}
