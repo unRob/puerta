@@ -38,6 +38,8 @@ type HTTPConfig struct {
 	Listen string `yaml:"listen"`
 	// Origin describes the http origins to allow
 	Origin string `yaml:"origin"`
+	// Protocol specifies the protocol for the webauthn origin
+	Protocol string `yaml:"protocol"`
 }
 
 type Config struct {
@@ -52,8 +54,9 @@ func ConfigDefaults(dbPath string) *Config {
 	return &Config{
 		DB: dbPath,
 		HTTP: &HTTPConfig{
-			Listen: "localhost:8000",
-			Origin: "localhost",
+			Listen:   "localhost:8000",
+			Origin:   "localhost",
+			Protocol: "http",
 		},
 	}
 }
@@ -178,8 +181,9 @@ func Initialize(config *Config) (http.Handler, error) {
 	wan, err := webauthn.New(&webauthn.Config{
 		RPDisplayName: config.Name,
 		RPID:          config.HTTP.Origin,
-		RPOrigins:     []string{config.HTTP.Origin},
-		// RPIcon:        "https://go-webauthn.local/logo.png",
+		RPOrigins:     []string{config.HTTP.Protocol + "://" + config.HTTP.Origin},
+		// For dev:
+		// RPOrigins:     []string{config.HTTP.Protocol + "://" + config.HTTP.Listen},
 	})
 	if err != nil {
 		return nil, err

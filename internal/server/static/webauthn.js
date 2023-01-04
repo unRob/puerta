@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright © 2022 Roberto Hidalgo <nidito@un.rob.mx>
-const { create: createCredentials, get: getCredentials } = hankoWebAuthn;
-
+import * as webauthnJSON from 'https://unpkg.com/@github/webauthn-json@2.0.2/dist/esm/webauthn-json.browser-ponyfill.js'
 const charsToEncode = /[\u007f-\uffff]/g;
 function JSONtob64(data) {
   return btoa(JSON.stringify(data).replace(charsToEncode, (c) => '\\u'+('000'+c.charCodeAt(0).toString(16)).slice(-4)))
@@ -21,7 +20,6 @@ export async function withAuth(target, config) {
     return response
   }
 
-  console.log(Object.fromEntries(response.headers))
   const challengeHeader = response.headers.get("webauthn")
   if (!challengeHeader || challengeHeader == "") {
     console.debug(`webauthn: success without auth`)
@@ -42,20 +40,41 @@ export async function withAuth(target, config) {
     // we try to do that
     await register(challenge, target)
     // and retry the original request if successful
-    return await withAuth(target, config)
+    return await new Promise((res, rej) => {
+      setTimeout(async () => {
+        try {
+          res(await withAuth(target, config))
+        } catch(err) {
+          rej(err)
+        }
+      }, 1000)
+    })
   } else if (step == "login") {
     // server told us to use existing credential for request
     return await login(challenge, target, config)
   }
 
-  throw `Unknown webauthn step: <${kind}>`
+  throw `Unknown webauthn step: <${step}>`
 }
 
 async function register(challenge) {
-  console.info("webauthn: creating credentials")
-  const credential = await createCredentials(challenge);
+  console.info("webauthn: initializing registration from challenge")
+  console.dir(challenge)
 
+  const parsed = webauthnJSON.parseCreationOptionsFromJSON(challenge)
+  console.debug("webauthn: parsed challenge")
+  console.dir(parsed)
+
+  console.info("webauthn: issuing credential creation request to browser")
+  let credential
+  try {
+    credential = await webauthnJSON.create(parsed);
+  } catch (err) {
+    console.error("sigh", err)
+    throw err
+  }
   console.debug(`webauthn: registering credentials with server: ${JSON.stringify(credential)}`)
+
   let response = await window.fetch("/api/webauthn/register", {
     credentials: "include",
     method: "POST",
@@ -81,8 +100,14 @@ async function register(challenge) {
 }
 
 async function login(challenge, target, config) {
-  console.info("webauthn: fetching stored client credentials")
-  const credential = await getCredentials(challenge);
+  console.info("webauthn: initializing login from challenge")
+  console.dir(challenge)
+  const parsed = webauthnJSON.parseRequestOptionsFromJSON(challenge)
+  console.debug("webauthn: parsed challenge")
+  console.dir(parsed)
+
+  console.debug("webauthn: fetching stored client credentials")
+  let credential = await webauthnJSON.get(parsed);
 
   config.credentials = "include"
   config.headers = config.headers || {}

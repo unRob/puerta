@@ -40,7 +40,7 @@ type User struct {
 }
 
 func (u *User) WebAuthnID() []byte {
-	return []byte(fmt.Sprintf("%d", u.ID))
+	return []byte(fmt.Sprintf("%d-%s", u.ID, u.Handle))
 }
 
 // User Name according to the Relying Party
