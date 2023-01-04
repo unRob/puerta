@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright © 2022 Roberto Hidalgo <nidito@un.rob.mx>
-package auth
+package user
 
 import (
 	"encoding/json"
@@ -8,30 +8,16 @@ import (
 	"net/http"
 	"time"
 
+	"git.rob.mx/nidito/puerta/internal/constants"
+	"git.rob.mx/nidito/puerta/internal/errors"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/sirupsen/logrus"
 	"github.com/upper/db/v4"
 	"golang.org/x/crypto/bcrypt"
 )
 
-type Credential struct {
-	UserID int    `db:"user"`
-	Data   string `db:"data"`
-	wan    *webauthn.Credential
-}
-
-func (c *Credential) AsWebAuthn() webauthn.Credential {
-	if c.wan == nil {
-		c.wan = &webauthn.Credential{}
-		if err := json.Unmarshal([]byte(c.Data), &c.wan); err != nil {
-			panic(err)
-		}
-	}
-	return *c.wan
-}
-
-func UserFromContext(req *http.Request) *User {
-	u := req.Context().Value(ContextUser)
+func FromContext(req *http.Request) *User {
+	u := req.Context().Value(constants.ContextUser)
 
 	if u != nil {
 		return u.(*User)
@@ -40,16 +26,16 @@ func UserFromContext(req *http.Request) *User {
 }
 
 type User struct {
-	ID          int           `db:"id,omitempty" json:"-"`
-	Expires     *time.Time    `db:"expires,omitempty" json:"expires"`
-	Greeting    string        `db:"greeting" json:"greeting"`
-	Handle      string        `db:"handle" json:"handle"`
-	IsAdmin     bool          `db:"is_admin" json:"is_admin"`
-	Name        string        `db:"name" json:"name"`
-	Password    string        `db:"password" json:"password"`
-	Require2FA  bool          `db:"second_factor" json:"second_factor"`
-	Schedule    *UserSchedule `db:"schedule,omitempty" json:"schedule,omitempty"`
-	TTL         *TTL          `db:"max_ttl,omitempty" json:"max_ttl,omitempty"`
+	ID          int       `db:"id,omitempty" json:"-"`
+	Expires     *UTCTime  `db:"expires,omitempty" json:"expires,omitempty"`
+	Greeting    string    `db:"greeting" json:"greeting"`
+	Handle      string    `db:"handle" json:"handle"`
+	IsAdmin     bool      `db:"is_admin" json:"is_admin"`
+	Name        string    `db:"name" json:"name"`
+	Password    string    `db:"password" json:"password"`
+	Require2FA  bool      `db:"second_factor" json:"second_factor"`
+	Schedule    *Schedule `db:"schedule,omitempty" json:"schedule,omitempty"`
+	TTL         *TTL      `db:"max_ttl,omitempty" json:"max_ttl,omitempty"`
 	credentials []*Credential
 }
 
@@ -137,17 +123,21 @@ func (user *User) IsAllowed(t time.Time) error {
 func (user *User) Login(password string) error {
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
 		reason := fmt.Sprintf("Incorrect password for %s", user.Name)
-		return &InvalidCredentials{code: http.StatusForbidden, reason: reason}
+		return &errors.InvalidCredentials{Status: http.StatusForbidden, Reason: reason}
 	}
 
 	if user.Expired() {
 		reason := fmt.Sprintf("Expired user tried to login: %s", user.Name)
-		return &InvalidCredentials{code: http.StatusForbidden, reason: reason}
+		return &errors.InvalidCredentials{Status: http.StatusForbidden, Reason: reason}
 	}
 
 	return nil
 }
 
+func (user *User) HasCredentials() bool {
+	return len(user.credentials) > 0
+}
+
 // implement interfaces
-var _ = db.Record(&User{})
-var _ = webauthn.User(&User{})
+var _ db.Record = &User{}
+var _ webauthn.User = &User{}

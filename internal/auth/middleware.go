@@ -7,59 +7,63 @@ import (
 	"fmt"
 	"net/http"
 
+	"git.rob.mx/nidito/puerta/internal/constants"
+	"git.rob.mx/nidito/puerta/internal/errors"
+	"git.rob.mx/nidito/puerta/internal/user"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
 	"github.com/upper/db/v4"
 )
 
-func (am *Manager) withUser(handler httprouter.Handle) httprouter.Handle {
+func withUser(handler httprouter.Handle) httprouter.Handle {
 	return func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-		ctxUser := req.Context().Value(ContextUser)
-		req = func() *http.Request {
-			if ctxUser != nil {
-				return req
-			}
+		u := user.FromContext(req)
+		if u != nil {
+			handler(w, req, ps)
+			return
+		}
 
-			cookie, err := req.Cookie(string(ContextCookieName))
+		req = func() *http.Request {
+			cookie, err := req.Cookie(string(constants.ContextCookieName))
 			if err != nil {
 				logrus.Debugf("no cookie for user found in jar <%s>", req.Cookies())
 				return req
 			}
 
 			session := &SessionUser{}
-			q := am.db.SQL().
-				Select("s.token as token, ", "u.*").
+			q := _db.SQL().
+				Select("s.token as token, s.expires as expires", "u.*").
 				From("session as s").
 				Join("user as u").On("s.user = u.id").
 				Where(db.Cond{"s.token": cookie.Value})
 
 			if err := q.One(&session); err != nil {
 				logrus.Debugf("no cookie found in DB for jar <%s>: %s", req.Cookies(), err)
-				w.Header().Add("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%d; Secure; Path=/;", ContextCookieName, "", -1))
+				w.Header().Add("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%d; Secure; Path=/;", constants.ContextCookieName, "", -1))
 				return req
 			}
 
-			if session.Expired() {
+			if session.Expired() || session.User.Expired() {
 				logrus.Debugf("expired cookie found in DB for jar <%s>", req.Cookies())
-				w.Header().Add("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%d; Secure; Path=/;", ContextCookieName, "", -1))
-				err := am.db.Collection("session").Find(db.Cond{"token": cookie.Value}).Delete()
+				w.Header().Add("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%d; Secure; Path=/;", constants.ContextCookieName, "", -1))
+				err := _db.Collection("session").Find(db.Cond{"token": cookie.Value}).Delete()
 				if err != nil {
 					logrus.Errorf("could not purge expired session from DB: %s", err)
 				}
 				return req
 			}
 
-			return req.WithContext(context.WithValue(req.Context(), ContextUser, &session.User))
+			return req.WithContext(context.WithValue(req.Context(), constants.ContextUser, &session.User))
 		}()
 
 		handler(w, req, ps)
 	}
 }
 
-func (am *Manager) RequireAuth(handler httprouter.Handle) httprouter.Handle {
-	return am.withUser(func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-		if req.Context().Value(ContextUser) == nil {
-			am.requestAuth(w, http.StatusUnauthorized)
+func RequireAuth(handler httprouter.Handle) httprouter.Handle {
+	return withUser(func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+		if req.Context().Value(constants.ContextUser) == nil {
+			requestAuth(w, http.StatusUnauthorized)
 			return
 		}
 
@@ -67,9 +71,9 @@ func (am *Manager) RequireAuth(handler httprouter.Handle) httprouter.Handle {
 	})
 }
 
-func (am *Manager) RequireAuthOrRedirect(handler httprouter.Handle, target string) httprouter.Handle {
-	return am.withUser(func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-		if req.Context().Value(ContextUser) == nil {
+func RequireAuthOrRedirect(handler httprouter.Handle, target string) httprouter.Handle {
+	return withUser(func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+		if req.Context().Value(constants.ContextUser) == nil {
 			http.Redirect(w, req, target, http.StatusTemporaryRedirect)
 			return
 		}
@@ -78,15 +82,15 @@ func (am *Manager) RequireAuthOrRedirect(handler httprouter.Handle, target strin
 	})
 }
 
-func (am *Manager) RegisterSecondFactor() httprouter.Handle {
-	return am.RequireAuth(func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-		user := req.Context().Value(ContextUser).(*User)
-		if !user.Require2FA {
+func RegisterSecondFactor() httprouter.Handle {
+	return RequireAuth(func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+		u := user.FromContext(req)
+		if !u.Require2FA {
 			http.Error(w, http.StatusText(http.StatusConflict), http.StatusConflict)
 			return
 		}
 
-		err := am.WebAuthnFinishRegistration(req)
+		err := webAuthnFinishRegistration(req)
 		if err != nil {
 			logrus.Errorf("Failed during webauthn flow: %s", err.Error())
 			w.WriteHeader(http.StatusInternalServerError)
@@ -96,31 +100,30 @@ func (am *Manager) RegisterSecondFactor() httprouter.Handle {
 	})
 }
 
-func (am *Manager) Enforce2FA(handler httprouter.Handle) httprouter.Handle {
-	return am.RequireAuth(func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-		user := req.Context().Value(ContextUser).(*User)
-		if !user.Require2FA {
+func Enforce2FA(handler httprouter.Handle) httprouter.Handle {
+	return RequireAuth(func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+		u := user.FromContext(req)
+		if !u.Require2FA {
 			handler(w, req, ps)
 			return
 		}
 
 		logrus.Debug("Enforcing 2fa for request")
-		var err error
-		err = user.FetchCredentials(am.db)
-		if err != nil {
+		if err := u.FetchCredentials(_db); err != nil {
 			logrus.Errorf("Failed fetching credentials: %s", err.Error())
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
-		if len(user.credentials) == 0 {
-			err = am.WebAuthnBeginRegistration(req)
+		var flow func(*http.Request) error
+		if !u.HasCredentials() {
+			flow = webAuthnBeginRegistration
 		} else {
-			err = am.WebAuthnLogin(req)
+			flow = webAuthnLogin
 		}
 
-		if err != nil {
-			if wafc, ok := err.(WebAuthFlowChallenge); ok {
+		if err := flow(req); err != nil {
+			if wafc, ok := err.(errors.WebAuthFlowChallenge); ok {
 				w.WriteHeader(200)
 				w.Header().Add("content-type", "application/json")
 				w.Header().Add("webauthn", wafc.Header())
@@ -132,16 +135,20 @@ func (am *Manager) Enforce2FA(handler httprouter.Handle) httprouter.Handle {
 			return
 		}
 
-		defer am.sess.RenewToken(req.Context())
+		defer func() {
+			if err := _sess.RenewToken(req.Context()); err != nil {
+				logrus.Errorf("could not renew token")
+			}
+		}()
 		handler(w, req, ps)
 	})
 }
 
-func (am *Manager) RequireAdmin(handler httprouter.Handle) httprouter.Handle {
-	return am.RequireAuth(func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-		user := req.Context().Value(ContextUser).(*User)
+func RequireAdmin(handler httprouter.Handle) httprouter.Handle {
+	return RequireAuth(func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+		user := req.Context().Value(constants.ContextUser).(*user.User)
 		if !user.IsAdmin {
-			am.requestAuth(w, http.StatusUnauthorized)
+			requestAuth(w, http.StatusUnauthorized)
 			return
 		}
 		handler(w, req, ps)

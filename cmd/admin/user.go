@@ -5,12 +5,11 @@ package admin
 import (
 	"fmt"
 	"os"
-	"time"
 
 	"git.rob.mx/nidito/chinampa"
 	"git.rob.mx/nidito/chinampa/pkg/command"
-	"git.rob.mx/nidito/puerta/internal/auth"
 	"git.rob.mx/nidito/puerta/internal/server"
+	"git.rob.mx/nidito/puerta/internal/user"
 	"github.com/sirupsen/logrus"
 	"github.com/upper/db/v4/adapter/sqlite"
 	"golang.org/x/crypto/bcrypt"
@@ -44,12 +43,14 @@ var userAddCommand = &command.Command{
 	},
 	Options: command.Options{
 		"config": {
-			Type:    "string",
-			Default: "./config.joao.yaml",
+			Type:        "string",
+			Default:     "./config.joao.yaml",
+			Description: "the config to read from",
 		},
 		"db": {
-			Type:    "string",
-			Default: "./puerta.db",
+			Type:        "string",
+			Default:     "./puerta.db",
+			Description: "the database to operate on",
 		},
 		"ttl": {
 			Type:        "string",
@@ -102,45 +103,50 @@ var userAddCommand = &command.Command{
 			// Options:  {},
 		})
 		if err != nil {
-			return err
+			return fmt.Errorf("could not open connection to db: %s", err)
 		}
 
 		password, err := bcrypt.GenerateFromPassword([]byte(cmd.Arguments[2].ToString()), bcrypt.DefaultCost)
 		if err != nil {
-			return err
+			return fmt.Errorf("could not hash password: %s", err)
 		}
 
-		user := &auth.User{
-			Name:     cmd.Arguments[0].ToString(),
+		u := &user.User{
+			Name:     cmd.Arguments[1].ToString(),
 			Password: string(password),
-			Handle:   cmd.Arguments[1].ToString(),
+			Handle:   cmd.Arguments[0].ToString(),
 			Greeting: greeting,
 			IsAdmin:  admin,
 		}
 
-		*user.TTL = auth.TTL(ttl)
+		if ttl != "" {
+			u.TTL = &user.TTL{}
+			if err := u.TTL.Scan(ttl); err != nil {
+				return fmt.Errorf("could not decode ttl %s: %s", ttl, err)
+			}
+		}
 
 		if schedule != "" {
-			user.Schedule = &auth.UserSchedule{}
-			if err := user.Schedule.UnmarshalDB([]byte(schedule)); err != nil {
-				return err
+			u.Schedule = &user.Schedule{}
+			if err := u.Schedule.Scan(schedule); err != nil {
+				return fmt.Errorf("could not decode schedule %s: %s", schedule, err)
 			}
 		}
 
 		if expires != "" {
-			t, err := time.Parse(time.RFC3339, expires)
-			if err != nil {
-				return err
+			t := &user.UTCTime{}
+			if err := t.Scan(expires); err != nil {
+				return fmt.Errorf("could not decode expires %s: %s", expires, err)
 			}
-			user.Expires = &t
+			u.Expires = t
 		}
 
-		res, err := sess.Collection("user").Insert(user)
+		res, err := sess.Collection("user").Insert(u)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to insert %s", err)
 		}
 
-		logrus.Infof("Created user %s with ID: %d", user.Name, res.ID())
+		logrus.Infof("Created user %s with ID: %d", u.Name, res.ID())
 		return nil
 
 	},

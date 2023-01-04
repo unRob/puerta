@@ -11,30 +11,25 @@
     <link rel="stylesheet" href="/static/index.css" />
     <style>
     #user-list {
-      display: flex;
+      display: grid;
       padding: 0;
       margin: 0;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      grid-auto-rows: minmax(100px, auto);
+      position: relative;
     }
 
     #main-nav a {
       color: #fff
     }
 
-    user-info-panel {
-      padding: .5em;
-      border: 1px solid #c11145;
-      border-radius: 5px;
-      box-sizing: border-box;
-      width: 30%;
-      margin-right: 3%;
-    }
-
-    rex-record {
-      display:table-row;
-    }
-
-    td, th {
+    table {
       width: 100%;
+    }
+
+    .rex-record {
+      font-size: .8em;
     }
     </style>
   </head>
@@ -57,22 +52,88 @@
           <style>
             @import "/static/index.css";
 
+            :host {
+              border: 1px solid #c11145;
+              border-radius: 5px;
+              box-sizing: border-box;
+              transition: all ease-in-out .2s;
+            }
+
+            :host(.editing) {
+              position: absolute;
+              background-color: #f9f2f4;
+              float: left;
+              width: 100%;
+              box-shadow: 0px 1px 4px, 2px 2px #c11145;
+            }
+
+            button {
+              font-family: "Aestetico", sans-serif;
+              border-width: 2px;
+              border-radius: 6px;
+            }
+
+            header h3 {
+              background: #c46e87;
+              margin: 0;
+              padding: .5em .2em;
+              color: #fff
+            }
+
+            header .user-info-meta {
+              padding: .5em .2em;
+            }
+
+            header button {
+              float: right;
+              border-radius: 100%;
+              background-color: rgba(255,255,255,.5);
+              margin: .5em;
+              font-size: 1em;
+              width: 1.5em;
+              height: 1.5em;
+            }
+            header button:hover {
+              background-color: rgba(255,255,255,.8)
+            }
+
+            form {
+              padding: .5em;
+            }
+
+            #actions {
+              border-top: 1px solid #eee;
+              padding: .5em 0;
+              margin: .5em 0em;
+            }
+
+            .user-delete {
+              font-size: 1.2em;
+              display: inline;
+            }
+
+            .user-save {
+              float: right;
+              font-size: 1.2em;
+            }
+
             .user-info-panel {
               list-style: none;
-
             }
           </style>
           <li class="user-info-panel">
             <header>
+              <button class="user-edit">✎</button>
               <h3>Alguien</h3>
-              <code><pre>alguien</pre></code>
-              <button class="user-edit">Modificar</button>
+              <div class="user-info-meta">
+                <code>alguien</code>
+              </div>
             </header>
             <form action="/api/user/:id" class="user-info-panel-details hidden">
               <label for="name">Nombre</label>
               <input name="name" value="" placeholder="João Gilberto" required />
 
-              <label for="greeting">Greeting</label>
+              <label for="greeting">Saludo</label>
               <input name="greeting" placeholder="Olá Joãzinho!" />
 
               <label for="password">Password</label>
@@ -87,14 +148,18 @@
               <label for="ttl">TTL</label>
               <input type="text" name="max_ttl" placeholder="30d" autocorrect="off"/>
 
-              <label for="admin">Admin?</label>
-              <input type="checkbox" name="is_admin" />
+              <div>
+                <input type="checkbox" name="is_admin" /><label for="admin">Admin?</label>
+              </div>
 
-              <label for="admin">Requiere 2FA?</label>
-              <input type="checkbox" name="second_factor" />
+              <div>
+                <input type="checkbox" name="second_factor" /><label for="admin">Requiere 2FA?</label>
+              </div>
 
-              <button class="user-delete">Eliminar</button>
-              <button class="user-save">Guardar cambios</button>
+              <div id="actions">
+                <button class="user-delete">Eliminar</button>
+                <button class="user-save">Guardar cambios</button>
+              </div>
             </form>
           </li>
         </template>
@@ -109,7 +174,7 @@
           <label for="name">Nombre</label>
           <input name="name" placeholder="João Gilberto" required />
 
-          <label for="greeting">Greeting</label>
+          <label for="greeting">Saludo</label>
           <input name="greeting" placeholder="Olá Joãzinho!" />
 
           <label for="password">Password</label>
@@ -124,11 +189,13 @@
           <label for="max_ttl">TTL</label>
           <input type="text" name="max_ttl" placeholder="30d" autocorrect="off"/>
 
-          <label for="admin">Admin?</label>
-          <input type="checkbox" name="is_admin" />
+           <div>
+            <input type="checkbox" name="is_admin" /><label for="admin">Admin?</label>
+          </div>
 
-          <label for="second_factor">Requiere 2FA?</label>
-          <input type="checkbox" name="second_factor" />
+          <div>
+            <input type="checkbox" name="second_factor" /><label for="admin">Requiere 2FA?</label>
+          </div>
 
           <button id="create-user-submit" type="submit">Crear</button>
         </form>
@@ -137,6 +204,14 @@
       <section id="registro" class="hidden">
         <h2>Entradas recientes</h2>
         <table>
+        <colgroup>
+          <col span="1" style="width: 10%;">
+          <col span="1" style="width: 15%;">
+          <col span="1" style="width: 5%;">
+          <col span="1" style="width: 5%;">
+          <col span="1" style="width: 15%;">
+          <col span="1" style="width: 50%;">
+        </colgroup>
           <thead>
             <tr>
               <th>ts</th>

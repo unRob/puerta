@@ -1,13 +1,14 @@
-name: Casa de Alguien
+name: Casa de alguien
 
 adapter:
   kind: dry-run
-  ip: 192.168.1.256
-  username: nobody
-  device: -1
+  # but really
+  # kind: hue
+  # username: some-hue-bridge-key
+  # ip: 192.168.0.256 # the hue bridge's ip
+  # device: 53 # the device number
+  # see `puerta hue setup`
 
 http:
-  listen: 8000
-  domain: localhost
-
-db: ./puerta.db
+  listen: "localhost:8080"
+  origin: http://localhost:8080

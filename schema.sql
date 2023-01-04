@@ -21,7 +21,7 @@ CREATE TABLE credential(
   FOREIGN KEY(user) REFERENCES user(id) ON DELETE CASCADE
 );
 
-CREATE INDEX credential_user ON credential(id);
+CREATE INDEX credential_user ON credential(user);
 
 
 CREATE TABLE session(

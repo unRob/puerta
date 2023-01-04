@@ -1,9 +1,11 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright © 2022 Roberto Hidalgo <nidito@un.rob.mx>
 const button = document.querySelector("#open button")
 const form = document.querySelector("#open")
 import * as webauthn from "./webauthn.js"
 
-// const host = document.location.protocol + "//" + document.location.host
-const host = "http://localhost:8081"
+const host = document.location.protocol + "//" + document.location.host
+// const host = "http://localhost:8081"
 
 async function RequestToEnter() {
   console.debug("requesting to enter")

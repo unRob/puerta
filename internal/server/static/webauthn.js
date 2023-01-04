@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright © 2022 Roberto Hidalgo <nidito@un.rob.mx>
 const { create: createCredentials, get: getCredentials } = hankoWebAuthn;
 
 const charsToEncode = /[\u007f-\uffff]/g;
@@ -56,6 +58,7 @@ async function register(challenge) {
   console.debug(`webauthn: registering credentials with server: ${JSON.stringify(credential)}`)
   let response = await window.fetch("/api/webauthn/register", {
     credentials: "include",
+    method: "POST",
     body: JSON.stringify(credential),
     headers: {
       'Content-type': 'application/json'

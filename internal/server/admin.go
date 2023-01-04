@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"git.rob.mx/nidito/puerta/internal/auth"
+	"git.rob.mx/nidito/puerta/internal/user"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
 	"github.com/upper/db/v4"
@@ -31,7 +31,7 @@ func writeJSON(w http.ResponseWriter, data any) error {
 }
 
 func listUsers(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	users := []*auth.User{}
+	users := []*user.User{}
 	if err := _db.Collection("user").Find().All(&users); err != nil {
 		sendError(w, err)
 		return
@@ -40,37 +40,37 @@ func listUsers(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	writeJSON(w, users)
 }
 
-func userFromRequest(r *http.Request, user *auth.User) (*auth.User, error) {
+func userFromRequest(r *http.Request, u *user.User) (*user.User, error) {
 	dec := json.NewDecoder(r.Body)
-	res := &auth.User{}
+	res := &user.User{}
 	if err := dec.Decode(&res); err != nil {
 		return nil, err
 	}
 	logrus.Debugf("Unserialized user data: %v", res)
 
-	if user == nil {
-		user = &auth.User{
+	if u == nil {
+		u = &user.User{
 			Handle: res.Handle,
 		}
 	}
 
-	user.Name = res.Name
-	user.Expires = res.Expires
-	user.Greeting = res.Greeting
-	user.IsAdmin = res.IsAdmin
-	user.Require2FA = res.Require2FA
-	user.Schedule = res.Schedule
-	user.TTL = res.TTL
+	u.Name = res.Name
+	u.Expires = res.Expires
+	u.Greeting = res.Greeting
+	u.IsAdmin = res.IsAdmin
+	u.Require2FA = res.Require2FA
+	u.Schedule = res.Schedule
+	u.TTL = res.TTL
 
 	if res.Password != "" {
 		password, err := bcrypt.GenerateFromPassword([]byte(res.Password), bcrypt.DefaultCost)
 		if err != nil {
 			return nil, err
 		}
-		user.Password = string(password)
+		u.Password = string(password)
 	}
 
-	return user, nil
+	return u, nil
 
 }
 
@@ -90,10 +90,10 @@ func createUser(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 }
 
 func getUser(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
-	var user *auth.User
+	var user *user.User
 	idString := params.ByName("id")
 
-	if err := _db.Collection("user").Find(db.Cond{"handle": idString}).One(&user); err != nil {
+	if err := _db.Get(user, db.Cond{"handle": idString}); err != nil {
 		sendError(w, err)
 		return
 	}
@@ -102,8 +102,9 @@ func getUser(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
 }
 
 func updateUser(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
-	var user *auth.User
-	if err := _db.Collection("user").Find(db.Cond{"handle": params.ByName("id")}).One(user); err != nil {
+	logrus.Infof("updating user: %s", params.ByName("id"))
+	var user *user.User
+	if err := _db.Get(user, db.Cond{"handle": params.ByName("id")}); err != nil {
 		http.NotFound(w, r)
 		return
 	}

@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright © 2022 Roberto Hidalgo <nidito@un.rob.mx>
-package auth
+package user
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -32,24 +33,37 @@ func parseHour(src string) (float64, error) {
 	}
 
 	return 0.0, fmt.Errorf("unknown format for hour: %s", hm)
-
 }
 
-type UserSchedule struct {
+type Schedule struct {
 	src   string
 	days  []int
 	hours []float64
 }
 
-func (d UserSchedule) MarshalDB() (any, error) {
+func (d Schedule) MarshalDB() (any, error) {
 	return json.Marshal(d.src)
 }
 
-func (d UserSchedule) MarshalJSON() ([]byte, error) {
+func (d Schedule) MarshalJSON() ([]byte, error) {
 	return json.Marshal(d.src)
 }
 
-func (d *UserSchedule) Parse() error {
+func (d *Schedule) UnmarshalJSON(value []byte) error {
+	var str string
+	if err := json.Unmarshal(value, &str); err != nil {
+		return err
+	}
+	parsed := Schedule{src: str}
+	if err := parsed.Parse(); err != nil {
+		return err
+	}
+
+	*d = parsed
+	return nil
+}
+
+func (d *Schedule) Parse() error {
 	for _, kv := range strings.Split(d.src, " ") {
 		kvSlice := strings.Split(kv, "=")
 		key := kvSlice[0]
@@ -64,7 +78,7 @@ func (d *UserSchedule) Parse() error {
 			if err != nil {
 				return err
 			}
-			logrus.Infof("Parsed schedule days from: %d until %d", from, until)
+			logrus.Debugf("Parsed schedule days from: %d until %d", from, until)
 			d.days = []int{from, until}
 		case "hours":
 			from, err := parseHour(values[0])
@@ -75,39 +89,37 @@ func (d *UserSchedule) Parse() error {
 			if err != nil {
 				return err
 			}
-			logrus.Infof("Parsed schedule hours from: %f until %f", from, until)
+			logrus.Debugf("Parsed schedule hours from: %f until %f", from, until)
 			d.hours = []float64{from, until}
 		}
 	}
 	return nil
 }
 
-func (d *UserSchedule) UnmarshalDB(value any) error {
+func (d *Schedule) Scan(value any) error {
+	if value == nil {
+		return nil
+	}
+
 	var src string
-	if err := json.Unmarshal(value.([]byte), &src); err != nil {
+	var ok bool
+	if src, ok = value.(string); !ok {
+		if err := json.Unmarshal(value.([]byte), &src); err != nil {
+			return err
+		}
+	}
+
+	d.src = src
+
+	// parsed := UserSchedule{src: src}
+	if err := d.Parse(); err != nil {
 		return err
 	}
 
-	parsed := UserSchedule{src: src}
-	if err := parsed.Parse(); err != nil {
-		return err
-	}
-
-	*d = parsed
 	return nil
 }
 
-func (d *UserSchedule) UnmarshalJSON(value []byte) error {
-	parsed := UserSchedule{src: string(value)}
-	if err := parsed.Parse(); err != nil {
-		return err
-	}
-
-	*d = parsed
-	return nil
-}
-
-func (sch *UserSchedule) AllowedAt(t time.Time) bool {
+func (sch *Schedule) AllowedAt(t time.Time) bool {
 	weekDay := int(t.Weekday())
 	h, m, s := t.Clock()
 	fractionalHour := float64(h) + (float64(m*60.0+s) / 3600.0)
@@ -128,7 +140,7 @@ func (sch *UserSchedule) AllowedAt(t time.Time) bool {
 	return true
 }
 
-var _ = (db.Unmarshaler(&UserSchedule{}))
-var _ = (db.Marshaler(&UserSchedule{}))
-var _ = (json.Marshaler(&UserSchedule{}))
-var _ = (json.Unmarshaler(&UserSchedule{}))
+var _ sql.Scanner = &Schedule{}
+var _ db.Marshaler = &Schedule{}
+var _ json.Marshaler = &Schedule{}
+var _ json.Unmarshaler = &Schedule{}

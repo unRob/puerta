@@ -1,28 +1,71 @@
 import * as webauthn from "./webauthn.js"
 
-// const host = document.location.protocol + "//" + document.location.host
-const host = "http://localhost:8081"
+const host = document.location.protocol + "//" + document.location.host
+// const host = "http://localhost:8081"
+
+function localDate(src) {
+  const exp = new Date(src)
+  return new Date(exp - exp.getTimezoneOffset() * 60000).toISOString().replace("Z", "").replace(/\.\d+$/, '')
+}
 
 class UserInfoPanel extends HTMLElement {
   constructor(user) {
     super()
+  }
+
+  connectedCallback() {
     let template = document.getElementById("user-info-panel")
     const shadowRoot = this.attachShadow({ mode: "open" })
     const panel = template.content.cloneNode(true)
 
-    let handle = user.handle
-    panel.querySelector('h3').innerHTML = user.name
-    panel.querySelector('input[name=name]').value = user.name
+    let handle = this.getAttribute("handle")
+    panel.querySelector('h3').innerHTML = this.getAttribute("name")
+    panel.querySelector('input[name=name]').value = this.getAttribute("name")
 
-    panel.querySelector('form').action = panel.querySelector('form').action.replace(":id", handle)
-    panel.querySelector('pre').textContent = handle
+    const form = panel.querySelector('form')
+    form.action = panel.querySelector('form').action.replace(":id", handle)
+    panel.querySelector('code').textContent = handle
 
-    panel.querySelector('input[name=greeting]').value = user.greeting
-    panel.querySelector('input[name=schedule]').value = user.schedule
-    panel.querySelector('input[name=expires]').value = user.expires
-    panel.querySelector('input[name=max_ttl]').value = user.max_ttl
-    panel.querySelector('input[name=is_admin]').checked = user.is_admin
-    panel.querySelector('input[name=second_factor]').checked = user.second_factor
+    panel.querySelector('input[name=greeting]').value = this.getAttribute("greeting")
+    if (this.hasAttribute('schedule')){
+      panel.querySelector('input[name=schedule]').value = this.getAttribute("schedule")
+    }
+    if (this.hasAttribute('expires')){
+      panel.querySelector('input[name=expires]').value = localDate(this.getAttribute("expires"))
+    }
+    if (this.hasAttribute("is_admin")) {
+      const adminSpan = document.createElement("span")
+      adminSpan.innerText = "🔑"
+      panel.querySelector(".user-info-meta").prepend(adminSpan)
+    }
+    panel.querySelector('input[name=max_ttl]').value = this.getAttribute("max_ttl")
+    panel.querySelector('input[name=is_admin]').checked = this.hasAttribute("is_admin")
+    panel.querySelector('input[name=second_factor]').checked = this.hasAttribute("second_factor")
+    panel.querySelector("button.user-edit").addEventListener('click', evt => {
+      form.classList.toggle("hidden")
+      this.classList.toggle("editing")
+    })
+
+    form.addEventListener("submit", async (evt) => {
+      evt.preventDefault()
+      await UpdateUser(form)
+    })
+
+    panel.querySelector("button.user-delete").addEventListener('click', async evt => {
+      evt.preventDefault()
+      if (confirm(`Seguro que borramos a ${handle}?`)) {
+        let response = await webauthn.withAuth(`${host}/api/user/${handle}`, {
+          credentials: "include",
+          method: "DELETE"
+        })
+
+        if (!response.ok) {
+          throw new Error("Could not delete user:", response)
+        }
+
+        window.location.reload()
+      }
+    })
     shadowRoot.appendChild(panel)
   }
 }
@@ -35,7 +78,7 @@ class REXRow extends HTMLElement {
     const shadowRoot = this.attachShadow({ mode: "open" })
     const row = template.content.cloneNode(true)
 
-    row.querySelector('.log-record-timestamp').innerText = (new Date(rex.timestamp)).toISOString()
+    row.querySelector('.log-record-timestamp').innerText = localDate(rex.timestamp)
     row.querySelector('.log-record-user').innerText = rex.user
     row.querySelector('.log-record-status').innerHTML = !rex.error ? "ok" : `<strong>${rex.error}</strong> ${rex.failure}`
     row.querySelector('.log-record-second_factor').innerText = rex.second_factor ? "✓" : ""
@@ -45,7 +88,7 @@ class REXRow extends HTMLElement {
     shadowRoot.appendChild(row)
   }
 }
-customElements.define("rex-record", REXRow)
+customElements.define("rex-record", REXRow, {extends: "tr"})
 
 async function fetchUsers() {
   console.debug("fetching users")
@@ -64,7 +107,16 @@ async function fetchUsers() {
     return
   }
 
-  document.querySelector("#user-list").replaceChildren(...json.map(u => new UserInfoPanel(u)))
+  document.querySelector("#user-list").replaceChildren(...json.map(u => {
+    const ul = new UserInfoPanel()
+    Object.keys(u).forEach(k => {
+      let val = u[k]
+      if (!val) { return }
+      if(typeof(val) == "boolean") { val = k; }
+      ul.setAttribute(k, u[k])
+    })
+    return ul
+  }))
 }
 
 async function fetchLog() {
@@ -87,21 +139,24 @@ async function fetchLog() {
   document.querySelector("#rex-records").replaceChildren(...json.map(rex => {
     const tr = document.createElement("tr")
     tr.classList.add("rex-staus-" + (!rex.error ? "ok" : "failure"))
+    tr.classList.add("rex-record")
 
     const status = !rex.error ? "ok" : `<strong>${rex.error}</strong> ${rex.failure}`
-    tr.innerHTML = `<th class="log-record-timestamp">${(new Date(rex.timestamp)).toISOString()}</th>
+    tr.innerHTML = `<th class="log-record-timestamp">${localDate(rex.timestamp)}</th>
     <td class="log-record-user">${rex.user}</td>
     <td class="log-record-status">${status}</td>
     <td class="log-record-second_factor">${rex.second_factor ? "✓" : ""}</td>
     <td class="log-record-ip_address">${rex.ip_address}</td>
     <td class="log-record-user_agent">${rex.user_agent}</td>`
+    // table rows and shadow dom don't really play along
+    // also, the `is` attribute is not supported by safari :/
     // tr.appendChild(new REXRow(record))
     return tr
   }))
 }
 
-async function CreateUser(form) {
-  let user = Object.fromEntries(new FormData(form))
+function userFromForm(form) {
+  const user = Object.fromEntries(new FormData(form))
   delete(user.id)
   if (user.expires != "") {
     user.expires = (new Date(user.expires)).toISOString()
@@ -117,9 +172,32 @@ async function CreateUser(form) {
     delete(user.schedule)
   }
 
+  user.is_admin = user.is_admin == "on"
+  user.second_factor = user.second_factor == "on"
+  return user
+}
 
-  user.admin = (user.admin == "on")
-  user.second_factor = (user.second_factor == "on")
+async function UpdateUser(form) {
+  const user = userFromForm(form)
+
+  let response = await webauthn.withAuth(host + form.getAttribute("action"), {
+    credentials: "include",
+    method: "POST",
+    body: JSON.stringify(user),
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  })
+
+  if (!response.ok) {
+    throw new Error("Could not update user:", response)
+  }
+
+  window.location.reload()
+}
+
+async function CreateUser(form) {
+  const user = userFromForm(form)
 
   let response = await webauthn.withAuth(host + form.getAttribute("action"), {
     credentials: "include",
@@ -133,10 +211,9 @@ async function CreateUser(form) {
   if (!response.ok) {
     throw new Error("Could not create user:", response)
   }
-
-  window.location.reload()
+  form.reset()
+  window.location.hash = "#invitades"
 }
-
 
 
 async function switchTab() {

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"git.rob.mx/nidito/puerta/internal/user"
 	"github.com/upper/db/v4"
 )
 
@@ -48,22 +49,22 @@ type Session struct {
 	Expires time.Time `db:"expires"`
 }
 
-type SessionUser struct {
-	Token   string    `db:"token"`
-	UserID  int       `db:"user"`
-	Expires time.Time `db:"expires"`
-	User    `db:",inline"`
-}
-
 func (s *Session) Store(sess db.Session) db.Store {
 	return sess.Collection("session")
 }
 
-func (s *Session) Expired() bool {
-	return s.Expires.Before(time.Now())
+type SessionUser struct {
+	Token     string    `db:"token"`
+	UserID    int       `db:"user"`
+	Expires   time.Time `db:"expires"`
+	user.User `db:",inline"`
 }
 
-func NewSession(user *User, table db.Collection) (*Session, error) {
+func (s *SessionUser) Expired() bool {
+	return s.Expires.After(time.Now())
+}
+
+func NewSession(user *user.User, table db.Collection) (*Session, error) {
 	sess := &Session{
 		Token:   NewToken(),
 		UserID:  user.ID,

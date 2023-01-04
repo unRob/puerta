@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"time"
 
+	"git.rob.mx/nidito/puerta/internal/errors"
+	"git.rob.mx/nidito/puerta/internal/user"
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/sirupsen/logrus"
@@ -20,10 +22,10 @@ const SessionNameWANAuth = "wan-auth"
 const SessionNameWANRegister = "wan-register"
 const HeaderNameWAN = "webauthn"
 
-func (am *Manager) WebAuthnBeginRegistration(req *http.Request) error {
-	user := UserFromContext(req)
+func webAuthnBeginRegistration(req *http.Request) error {
+	user := user.FromContext(req)
 	logrus.Infof("Starting webauthn registration for %s", user.Name)
-	options, sessionData, err := am.wan.BeginRegistration(user)
+	options, sessionData, err := _wan.BeginRegistration(user)
 	if err != nil {
 		err = fmt.Errorf("error starting webauthn: %s", err)
 		logrus.Error(err)
@@ -35,13 +37,13 @@ func (am *Manager) WebAuthnBeginRegistration(req *http.Request) error {
 		return err
 	}
 
-	am.sess.Put(req.Context(), SessionNameWANRegister, b.Bytes())
-	return WebAuthFlowChallenge{"register", &options}
+	_sess.Put(req.Context(), SessionNameWANRegister, b.Bytes())
+	return errors.WebAuthFlowChallenge{Flow: "register", Data: &options}
 }
 
-func (am *Manager) WebAuthnFinishRegistration(req *http.Request) error {
-	user := UserFromContext(req)
-	sd := am.sess.PopBytes(req.Context(), SessionNameWANRegister)
+func webAuthnFinishRegistration(req *http.Request) error {
+	u := user.FromContext(req)
+	sd := _sess.PopBytes(req.Context(), SessionNameWANRegister)
 	if sd == nil {
 		return fmt.Errorf("error finishing webauthn registration: no session found for user")
 	}
@@ -52,7 +54,7 @@ func (am *Manager) WebAuthnFinishRegistration(req *http.Request) error {
 		return err
 	}
 
-	cred, err := am.wan.FinishRegistration(user, sessionData, req)
+	cred, err := _wan.FinishRegistration(u, sessionData, req)
 	if err != nil {
 		return fmt.Errorf("error finishing webauthn registration: %s", err)
 	}
@@ -61,22 +63,22 @@ func (am *Manager) WebAuthnFinishRegistration(req *http.Request) error {
 	if err != nil {
 		return fmt.Errorf("error encoding webauthn credential for storage: %s", err)
 	}
-	credential := &Credential{
-		UserID: user.ID,
+	credential := &user.Credential{
+		UserID: u.ID,
 		Data:   string(data),
 	}
 
-	_, err = am.db.Collection("credential").Insert(credential)
+	_, err = _db.Collection("credential").Insert(credential)
 	return err
 }
 
-func (am *Manager) WebAuthnLogin(req *http.Request) error {
-	user := UserFromContext(req)
-	sd := am.sess.PopBytes(req.Context(), SessionNameWANAuth)
+func webAuthnLogin(req *http.Request) error {
+	user := user.FromContext(req)
+	sd := _sess.PopBytes(req.Context(), SessionNameWANAuth)
 	if sd == nil {
 		logrus.Infof("Starting webauthn login flow for %s", user.Name)
 
-		options, sessionData, err := am.wan.BeginLogin(user)
+		options, sessionData, err := _wan.BeginLogin(user)
 		if err != nil {
 			return fmt.Errorf("error starting webauthn login: %s", err)
 		}
@@ -86,9 +88,9 @@ func (am *Manager) WebAuthnLogin(req *http.Request) error {
 			return fmt.Errorf("could not encode json: %s", err)
 		}
 
-		am.sess.Put(req.Context(), SessionNameWANAuth, b.Bytes())
+		_sess.Put(req.Context(), SessionNameWANAuth, b.Bytes())
 
-		return WebAuthFlowChallenge{"login", &options}
+		return errors.WebAuthFlowChallenge{Flow: "login", Data: &options}
 	}
 
 	var sessionData webauthn.SessionData
@@ -112,10 +114,10 @@ func (am *Manager) WebAuthnLogin(req *http.Request) error {
 		return fmt.Errorf("could not parse webauthn request into protocol: %w", err)
 	}
 
-	_, err = am.wan.ValidateLogin(user, sessionData, response)
+	_, err = _wan.ValidateLogin(user, sessionData, response)
 	return err
 }
 
-func (am *Manager) Cleanup() error {
-	return am.db.Collection("session").Find(db.Cond{"Expires": db.Before(time.Now())}).Delete()
+func Cleanup() error {
+	return _db.Collection("session").Find(db.Cond{"Expires": db.Before(time.Now())}).Delete()
 }

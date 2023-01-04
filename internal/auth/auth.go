@@ -7,6 +7,9 @@ import (
 	"net/http"
 	"time"
 
+	"git.rob.mx/nidito/puerta/internal/constants"
+	"git.rob.mx/nidito/puerta/internal/errors"
+	"git.rob.mx/nidito/puerta/internal/user"
 	"github.com/alexedwards/scs/v2"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/julienschmidt/httprouter"
@@ -14,38 +17,26 @@ import (
 	"github.com/upper/db/v4"
 )
 
-type AuthContext string
+var _db db.Session
+var _wan *webauthn.WebAuthn
+var _sess *scs.SessionManager
 
-const (
-	ContextCookieName AuthContext = "_puerta"
-	ContextUser       AuthContext = "_user"
-)
-
-type Manager struct {
-	db   db.Session
-	wan  *webauthn.WebAuthn
-	sess *scs.SessionManager
-}
-
-func NewManager(wan *webauthn.WebAuthn, db db.Session) *Manager {
+func Initialize(wan *webauthn.WebAuthn, db db.Session) {
 	sessionManager := scs.New()
 	sessionManager.Lifetime = 5 * time.Minute
-	return &Manager{
-		db:   db,
-		wan:  wan,
-		sess: sessionManager,
-	}
+	_db = db
+	_wan = wan
 }
 
-func (am *Manager) Route(router http.Handler) http.Handler {
-	return am.sess.LoadAndSave(router)
+func Route(router http.Handler) http.Handler {
+	return _sess.LoadAndSave(router)
 }
 
-func (am *Manager) requestAuth(w http.ResponseWriter, status int) {
+func requestAuth(w http.ResponseWriter, status int) {
 	http.Error(w, http.StatusText(status), status)
 }
 
-func (am *Manager) NewSession(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+func LoginHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	err := req.ParseForm()
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
@@ -55,9 +46,9 @@ func (am *Manager) NewSession(w http.ResponseWriter, req *http.Request, ps httpr
 	username := req.FormValue("user")
 	password := req.FormValue("password")
 
-	user := &User{}
-	if err := am.db.Get(user, db.Cond{"name": username}); err != nil {
-		err := &InvalidCredentials{code: http.StatusForbidden, reason: fmt.Sprintf("User not found for name: %s (%s)", username, err)}
+	user := &user.User{}
+	if err := _db.Get(user, db.Cond{"name": username}); err != nil {
+		err := &errors.InvalidCredentials{Status: http.StatusForbidden, Reason: fmt.Sprintf("User not found for name: %s (%s)", username, err)}
 		err.Log()
 		http.Error(w, err.Error(), err.Code())
 		return
@@ -66,7 +57,7 @@ func (am *Manager) NewSession(w http.ResponseWriter, req *http.Request, ps httpr
 	if err := user.Login(password); err != nil {
 		code := http.StatusBadRequest
 		status := http.StatusText(code)
-		if err, ok := err.(InvalidCredentials); ok {
+		if err, ok := err.(errors.InvalidCredentials); ok {
 			code = err.Code()
 			status = err.Error()
 			err.Log()
@@ -75,13 +66,13 @@ func (am *Manager) NewSession(w http.ResponseWriter, req *http.Request, ps httpr
 		return
 	}
 
-	sess, err := NewSession(user, am.db.Collection("session"))
+	sess, err := NewSession(user, _db.Collection("session"))
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Could not create a session: %s", err), http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Add("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%d; Path=/;", ContextCookieName, sess.Token, user.TTL.Seconds()))
+	w.Header().Add("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%d; Path=/;", constants.ContextCookieName, sess.Token, user.TTL.Seconds()))
 
 	logrus.Infof("Created session for %s", user.Name)
 

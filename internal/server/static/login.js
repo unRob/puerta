@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright © 2022 Roberto Hidalgo <nidito@un.rob.mx>
 const button = document.querySelector("#auth")
 const form = document.querySelector("#login")
 
