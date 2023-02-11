@@ -130,30 +130,30 @@
               </div>
             </header>
             <form action="/api/user/:id" class="user-info-panel-details hidden">
-              <label for="name">Nombre</label>
-              <input name="name" value="" placeholder="João Gilberto" required />
+              <label for="edit-name">Nombre</label>
+              <input id="edit-name" name="name" value="" placeholder="João Gilberto" required />
 
-              <label for="greeting">Saludo</label>
-              <input name="greeting" placeholder="Olá Joãzinho!" />
+              <label for="edit-edit-greeting">Saludo</label>
+              <input id="edit-greeting" name="greeting" placeholder="Olá Joãzinho!" />
 
-              <label for="password">Password</label>
-              <input type="password" name="password" />
+              <label for="edit-password">Password</label>
+              <input id="edit-password" type="password" name="password" />
 
-              <label for="schedule">Horarios</label>
-              <input type="text" name="schedule" placeholder="days=1-5 hours=8-20:35" autocorrect="off"/>
+              <label for="edit-schedule">Horarios</label>
+              <input id="edit-schedule" type="text" name="schedule" placeholder="days=1-5 hours=8-20:35" autocorrect="off"/>
 
-              <label for="expires">Expires</label>
-              <input type="datetime-local" name="expires" placeholder="2023-01-01T00:00:00Z" />
+              <label for="edit-expires">Expires</label>
+              <input id="edit-expires" type="datetime-local" name="expires" placeholder="2023-01-01T00:00:00Z" />
 
-              <label for="ttl">TTL</label>
-              <input type="text" name="max_ttl" placeholder="30d" autocorrect="off"/>
+              <label for="edit-ttl">TTL</label>
+              <input id="edit-max_ttl" type="text" name="max_ttl" placeholder="30d" autocorrect="off"/>
 
               <div>
-                <input type="checkbox" name="is_admin" /><label for="admin">Admin?</label>
+                <input id="edit-is_admin" type="checkbox" name="is_admin" /><label for="edit-admin">Admin?</label>
               </div>
 
               <div>
-                <input type="checkbox" name="second_factor" /><label for="admin">Requiere 2FA?</label>
+                <input id="edit-second_factor" type="checkbox" name="second_factor" /><label for="edit-second_factor">Requiere 2FA?</label>
               </div>
 
               <div id="actions">

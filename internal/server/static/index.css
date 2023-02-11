@@ -11,6 +11,10 @@ button {
   transition: all ease-in-out .5s;
 }
 
+.container {
+  box-sizing: border-box;
+}
+
 #rex {
   font-size: 5em;
   border-radius: 100%;
@@ -76,13 +80,16 @@ input[type=checkbox] {
   height: .8em;
 }
 
-@media screen and (max-width: 768px) {
-  input {
-    max-width: auto;
-  }
-}
-
-
 .hidden {
   display: none
 }
+
+@media screen and (max-width: 768px) {
+  input {
+    max-width: 100%;
+  }
+  button {
+    max-width: 100%;
+  }
+}
+

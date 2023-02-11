@@ -1,0 +1,15 @@
+{
+  "background_color": "#ffc6d7",
+  "description": "Abre la puerta del Castillo de Chapultebob",
+  "display": "fullscreen",
+  "icons": [
+    {
+      "src": "static/icon@192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ],
+  "name": "Puerta Nidito",
+  "short_name": "Puerta",
+  "start_url": "/"
+}

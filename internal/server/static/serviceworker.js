@@ -6,13 +6,12 @@ importScripts(
 
 workbox.loadModule('workbox-strategies');
 
-
 self.addEventListener("install", event => {
   console.log("Service worker installed");
 
   const urlsToCache = ["/login", "/", "index.css", "/index.js", "/login.js", "/webauthn.js"];
   event.waitUntil(
-    caches.open("pwa-assets")
+    caches.open("assets")
     .then(cache => {
         return cache.addAll(urlsToCache);
     })

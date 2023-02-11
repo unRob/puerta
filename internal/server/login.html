@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="https://cdn.rob.mx/css/fonts.css" />
     <link rel="stylesheet" href="https://cdn.rob.mx/nidito/index.css" />
     <link rel="stylesheet" href="/static/index.css" />
+    <!--link rel="manifest" href="/static/manifest.webmanifest" /-->
   </head>
   <body>
     <header id="main-header">
@@ -19,12 +20,12 @@
     </header>
     <main class="container">
       <form id="login" method="post" action="/api/login">
-        <span class="error"></span>
+        <h2 class="error"></h2>
         <label for="user">Usuario</label>
-        <input type="text" name="user" autocorrect="false"  />
+        <input id="user" type="text" name="user" autocorrect="false"  />
 
         <label for="password">Password</label>
-        <input type="password" name="password" />
+        <input id="password" type="password" name="password" />
         <button id="auth" type="submit">Iniciar Sesión</button>
       </form>
     </main>

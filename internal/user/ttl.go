@@ -66,7 +66,7 @@ func (ttl *TTL) Scan(value any) error {
 		}
 	}
 
-	if value == "" {
+	if src == "" {
 		return nil
 	}
 
@@ -99,7 +99,7 @@ func (ttl *TTL) FromNow() time.Time {
 }
 
 func (ttl *TTL) Seconds() int {
-	return int(ttl.duration)
+	return int(ttl.duration.Seconds())
 }
 
 var _ sql.Scanner = &TTL{}
