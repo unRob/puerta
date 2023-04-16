@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/fs"
 	"log"
+	"mime"
 	"net/http"
 	"os"
 	"time"
@@ -236,6 +237,7 @@ func Initialize(config *Config) (http.Handler, error) {
 		assetRoot = http.FS(subfs)
 	}
 
+	mime.AddExtensionType(".webmanifest", "application/manifest+json")
 	router.ServeFiles("/static/*filepath", assetRoot)
 	router.GET("/login", renderTemplate(loginTemplate))
 	router.GET("/", auth.RequireAuthOrRedirect(renderTemplate(indexTemplate), "/login"))
