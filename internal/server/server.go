@@ -140,7 +140,7 @@ func notifyAdmins(message string) {
 		logrus.Errorf("could not fetch subscriptions: %s", err)
 	}
 
-	logrus.Infof("notifying %v admins", subs[0].AsWebPush())
+	logrus.Infof("notifying %v admins", len(subs))
 
 	for _, sub := range subs {
 		err := push.Notify(message, sub)

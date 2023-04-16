@@ -6,12 +6,12 @@ import (
 )
 
 type VAPIDKey struct {
-	Private string
-	Public  string
+	Private string `yaml:"private"`
+	Public  string `yaml:"public"`
 }
 
 type Config struct {
-	Key *VAPIDKey
+	Key *VAPIDKey `yaml:"key"`
 }
 
 type Notifier struct {
