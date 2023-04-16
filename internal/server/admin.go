@@ -4,9 +4,11 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"git.rob.mx/nidito/puerta/internal/user"
+	"github.com/SherClockHolmes/webpush-go"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
 	"github.com/upper/db/v4"
@@ -132,6 +134,59 @@ func deleteUser(w http.ResponseWriter, r *http.Request, params httprouter.Params
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func createSubscription(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+	u := user.FromContext(r)
+	dec := json.NewDecoder(r.Body)
+	res := &webpush.Subscription{}
+	if err := dec.Decode(&res); err != nil {
+		sendError(w, err)
+		return
+	}
+	logrus.Infof("Unserialized subscription data: %v", res)
+
+	sub := &user.Subscription{
+		UserID: u.ID,
+		Data:   &user.WPS{Subscription: res},
+	}
+
+	ins, err := _db.Collection("subscription").Insert(sub)
+	if err != nil {
+		sendError(w, err)
+		return
+	}
+
+	logrus.Infof("Created subscription for: %s (%v)", u.Handle, ins)
+	w.WriteHeader(http.StatusCreated)
+	w.Write([]byte(`{"status": "ok"}`))
+}
+
+func deleteSubscription(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+	u := user.FromContext(r)
+
+	dec := json.NewDecoder(r.Body)
+	res := &webpush.Subscription{}
+	if err := dec.Decode(&res); err != nil {
+		sendError(w, err)
+		return
+	}
+	encoded, err := json.Marshal(res)
+
+	if err != nil {
+		sendError(w, err)
+		return
+	}
+
+	err = _db.Collection("subscription").Find(db.Cond{"user": u.ID, "data": db.Like(fmt.Sprintf("%%%s%%", encoded))}).Delete()
+	if err != nil {
+		sendError(w, fmt.Errorf("could not delete subscription: %s", err))
+		return
+	}
+
+	logrus.Infof("Deleted subscription for: %s (%s)", u.Handle, encoded)
+	w.WriteHeader(http.StatusCreated)
+	w.Write([]byte(`{"status": "ok"}`))
 }
 
 func rexRecords(w http.ResponseWriter, r *http.Request, params httprouter.Params) {

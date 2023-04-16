@@ -6,21 +6,84 @@ import (
 	"fmt"
 	"os"
 
-	"git.rob.mx/nidito/chinampa"
 	"git.rob.mx/nidito/chinampa/pkg/command"
 	"git.rob.mx/nidito/puerta/internal/server"
 	"git.rob.mx/nidito/puerta/internal/user"
 	"github.com/sirupsen/logrus"
+	"github.com/upper/db/v4"
 	"github.com/upper/db/v4/adapter/sqlite"
 	"golang.org/x/crypto/bcrypt"
 	"gopkg.in/yaml.v3"
 )
 
-func init() {
-	chinampa.Register(userAddCommand)
+var UserReset2faCommand = &command.Command{
+	Path:        []string{"admin", "user", "reset2fa"},
+	Summary:     "Resets a user's 2FA device",
+	Description: "by deleting it",
+	Arguments: command.Arguments{
+		{
+			Name:        "handle",
+			Description: "the username to delete 2FA credentials from",
+			Required:    true,
+		},
+	},
+	Options: command.Options{
+		"db": {
+			Type:        "string",
+			Default:     "./puerta.db",
+			Description: "the database to operate on",
+		},
+		"config": {
+			Type:    "string",
+			Default: "./config.joao.yaml",
+		},
+	},
+	Action: func(cmd *command.Command) error {
+		config := cmd.Options["config"].ToValue().(string)
+		dbPath := cmd.Options["db"].ToValue().(string)
+		cfg := server.ConfigDefaults(dbPath)
+		handle := cmd.Arguments[0].ToString()
+
+		data, err := os.ReadFile(config)
+		if err != nil {
+			return fmt.Errorf("could not read config file: %w", err)
+		}
+
+		if err := yaml.Unmarshal(data, &cfg); err != nil {
+			return fmt.Errorf("could not unserialize yaml at %s: %w", config, err)
+		}
+
+		sess, err := sqlite.Open(sqlite.ConnectionURL{
+			Database: cfg.DB,
+		})
+		if err != nil {
+			return fmt.Errorf("could not open connection to db: %s", err)
+		}
+
+		u := &user.User{}
+		err = sess.Get(u, db.Cond{"handle": handle})
+		if err != nil || u == nil {
+			return fmt.Errorf("could not find user named %s: %s", handle, err)
+		}
+
+		if err := u.FetchCredentials(sess); err != nil {
+			return fmt.Errorf("could not fetch credentials for user named %s: %s", handle, err)
+		}
+
+		if !u.HasCredentials() {
+			return fmt.Errorf("User %s has no credentials to delete", handle)
+		}
+
+		if err := u.DeleteCredentials(sess); err != nil {
+			return fmt.Errorf("could not delete credentials for user named %s: %s", handle, err)
+		}
+
+		logrus.Infof("Deleted webauthn credentials for user %s", u.Name)
+		return nil
+	},
 }
 
-var userAddCommand = &command.Command{
+var UserAddCommand = &command.Command{
 	Path:        []string{"admin", "user", "create"},
 	Summary:     "Create the initial user",
 	Description: "",

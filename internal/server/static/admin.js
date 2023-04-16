@@ -43,6 +43,7 @@ class UserInfoPanel extends HTMLElement {
     panel.querySelector('input[name=max_ttl]').value = this.getAttribute("max_ttl")
     panel.querySelector('input[name=is_admin]').checked = this.hasAttribute("is_admin")
     panel.querySelector('input[name=second_factor]').checked = this.hasAttribute("second_factor")
+    panel.querySelector('input[name=receives_notifications]').checked = this.hasAttribute("receives_notifications")
     panel.querySelector("button.user-edit").addEventListener('click', evt => {
       form.classList.toggle("hidden")
       this.classList.toggle("editing")
@@ -176,6 +177,7 @@ function userFromForm(form) {
 
   user.is_admin = user.is_admin == "on"
   user.second_factor = user.second_factor == "on"
+  user.receives_notifications = user.receives_notifications == "on"
   return user
 }
 
@@ -215,6 +217,36 @@ async function CreateUser(form) {
   }
   form.reset()
   window.location.hash = "#invitades"
+}
+
+async function CreateSubscription(subData) {
+  let response = await webauthn.withAuth("/api/push/subscribe", {
+    credentials: "include",
+    method: "POST",
+    body: subData,
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  })
+
+  if (!response.ok) {
+    throw new Error("Could not create subscription:", response)
+  }
+}
+
+async function DeleteSubscription(subData) {
+  let response = await webauthn.withAuth("/api/push/unsubscribe", {
+    credentials: "include",
+    method: "POST",
+    body: subData,
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  })
+
+  if (!response.ok) {
+    throw new Error("Could not delete subscription:", response)
+  }
 }
 
 
@@ -258,7 +290,74 @@ window.addEventListener("load", async function() {
   })
 
   switchTab()
+
+  const reg = await navigator.serviceWorker.register("/admin-serviceworker.js", {
+    type: "module",
+    scope: "/"
+  })
+
+  const sub = await reg.pushManager.getSubscription()
+  console.log(`registered SW, push sub: ${sub}`, reg)
+
+  const pnb = document.querySelector("#push-notifications")
+
+  if (sub) {
+    pnb.classList.add("subscribed")
+    pnb.innerHTML = "🔕"
+  } else {
+    pnb.classList.remove("subscribed")
+    pnb.innerHTML = "🔔"
+  }
+
+  pnb.addEventListener('click', async evt =>{
+    if (!pnb.classList.contains("subscribed")) {
+      if (await createPushSubscription()) {
+        pnb.classList.add("subscribed")
+        pnb.innerHTML = "🔕"
+      }
+    } else {
+      if (await deletePushSubscription()) {
+        pnb.classList.remove("subscribed")
+        pnb.innerHTML = "🔔"
+      }
+    }
+  })
 })
+
+async function createPushSubscription() {
+  const registration = await navigator.serviceWorker.getRegistration()
+  const result = await Notification.requestPermission();
+  if (result == "denied") {
+    return false
+  }
+  const subscription = await registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlB64ToUint8Array(window._PushKey)
+  })
+
+  return await CreateSubscription(JSON.stringify(subscription.toJSON()))
+}
+
+async function deletePushSubscription() {
+  const registration = await navigator.serviceWorker.getRegistration()
+  const subscription = await registration.pushManager.getSubscription()
+  if (await subscription.unsubscribe()) {
+    return await DeleteSubscription(JSON.stringify(subscription.toJSON()))
+  }
+}
+
+const urlB64ToUint8Array = (base64String) => {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding)
+    .replace(/\-/g, '+')
+    .replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+};
 
 window.addEventListener('hashchange', () => {
   switchTab()

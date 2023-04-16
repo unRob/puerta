@@ -36,6 +36,8 @@ type User struct {
 	Require2FA  bool      `db:"second_factor" json:"second_factor"`
 	Schedule    *Schedule `db:"schedule,omitempty" json:"schedule,omitempty"`
 	TTL         *TTL      `db:"max_ttl,omitempty" json:"max_ttl,omitempty"`
+	IsNotified  bool      `db:"receives_notifications" json:"receives_notifications"`
+	subs        []*Subscription
 	credentials []*Credential
 }
 
@@ -82,6 +84,17 @@ func (u *User) FetchCredentials(sess db.Session) error {
 	}
 	u.credentials = creds
 	logrus.Debugf("fetched %d credentials", len(creds))
+
+	return nil
+}
+
+func (u *User) DeleteCredentials(sess db.Session) error {
+	err := sess.Collection("credential").Find(db.Cond{"user": u.ID}).Delete()
+	if err != nil {
+		return err
+	}
+	u.credentials = []*Credential{}
+	logrus.Debugf("deleted all credentials for %d", u.ID)
 
 	return nil
 }

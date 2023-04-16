@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="https://cdn.rob.mx/css/fonts.css" />
     <link rel="stylesheet" href="https://cdn.rob.mx/nidito/index.css" />
     <link rel="stylesheet" href="/static/index.css" />
+    <link rel="manifest" href="/static/admin-manifest.webmanifest" />
     <style>
     #user-list {
       display: grid;
@@ -41,6 +42,7 @@
           <a class="nav-item" href="#invitades">Invitades</a>
           <a class="nav-item" href="#crear">Crear Invitade</a>
           <a class="nav-item" href="#registro">Registro</a>
+          <button id="push-notifications">🔔</button>
         </nav>
       </div>
     </header>
@@ -156,6 +158,10 @@
                 <input id="edit-second_factor" type="checkbox" name="second_factor" /><label for="edit-second_factor">Requiere 2FA?</label>
               </div>
 
+              <div>
+                <input id="edit-receives_notifications" type="checkbox" name="receives_notifications" /><label for="edit-receives_notifications">Recibe Notificaciones?</label>
+              </div>
+
               <div id="actions">
                 <button class="user-delete">Eliminar</button>
                 <button class="user-save">Guardar cambios</button>
@@ -190,11 +196,15 @@
           <input type="text" name="max_ttl" placeholder="30d" autocorrect="off"/>
 
            <div>
-            <input type="checkbox" name="is_admin" /><label for="admin">Admin?</label>
+            <input type="checkbox" name="is_admin" /><label for="is_admin">Admin?</label>
           </div>
 
           <div>
-            <input type="checkbox" name="second_factor" /><label for="admin">Requiere 2FA?</label>
+            <input type="checkbox" name="second_factor" /><label for="second_factor">Requiere 2FA?</label>
+          </div>
+
+          <div>
+            <input type="checkbox" name="receives_notifications" /><label for="receives_notifications">Recibe Notificaciones?</label>
           </div>
 
           <button id="create-user-submit" type="submit">Crear</button>
@@ -235,7 +245,7 @@
     </main>
 
     <script type="module" src="https://unpkg.com/@github/webauthn-json@2.0.2/dist/esm/webauthn-json.browser-ponyfill.js"></script>
-
+    <script>window._PushKey = "$PUSH_KEY$"</script>
     <script type="module" src="/static/admin.js"></script>
   </body>
 </html>

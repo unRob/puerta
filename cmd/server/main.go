@@ -7,18 +7,13 @@ import (
 	"net/http"
 	"os"
 
-	"git.rob.mx/nidito/chinampa"
 	"git.rob.mx/nidito/chinampa/pkg/command"
 	"git.rob.mx/nidito/puerta/internal/server"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 )
 
-func init() {
-	chinampa.Register(serverCommand)
-}
-
-var serverCommand = &command.Command{
+var ServerCommand = &command.Command{
 	Path:        []string{"server"},
 	Summary:     "Runs the http server",
 	Description: "",

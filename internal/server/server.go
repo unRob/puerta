@@ -3,16 +3,20 @@
 package server
 
 import (
+	"bytes"
 	"embed"
 	"fmt"
+	"io"
 	"io/fs"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"git.rob.mx/nidito/puerta/internal/auth"
 	"git.rob.mx/nidito/puerta/internal/door"
 	"git.rob.mx/nidito/puerta/internal/errors"
+	"git.rob.mx/nidito/puerta/internal/push"
 	"git.rob.mx/nidito/puerta/internal/user"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/julienschmidt/httprouter"
@@ -46,6 +50,7 @@ type Config struct {
 	Name    string         `yaml:"name"`
 	Adapter map[string]any `yaml:"adapter"`
 	HTTP    *HTTPConfig    `yaml:"http"`
+	WebPush *push.Config   `yaml:"push"`
 
 	DB string `yaml:"db"`
 }
@@ -124,6 +129,27 @@ func allowCORS(handler httprouter.Handle) httprouter.Handle {
 	}
 }
 
+func notifyAdmins(message string) {
+	subs := []*user.Subscription{}
+	err := _db.SQL().
+		SelectFrom("subscription as s").
+		Join("user as u").
+		On(`u.id = s.user and u.receives_notifications and u.is_admin`).
+		All(&subs)
+	if err != nil {
+		logrus.Errorf("could not fetch subscriptions: %s", err)
+	}
+
+	logrus.Infof("notifying %v admins", subs[0].AsWebPush())
+
+	for _, sub := range subs {
+		err := push.Notify(message, sub)
+		if err != nil {
+			logrus.Errorf("could not push notification to subscription %s: %s", sub.ID, err)
+		}
+	}
+}
+
 func rex(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	var err error
 	u := user.FromContext(r)
@@ -149,6 +175,7 @@ func rex(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 		http.Error(w, message, code)
 		return
 	}
+	go notifyAdmins(fmt.Sprintf("%s abrió la puerta", u.Name))
 
 	fmt.Fprintf(w, `{"status": "ok"}`)
 }
@@ -156,6 +183,7 @@ func rex(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 var _db db.Session
 
 func Initialize(config *Config) (http.Handler, error) {
+	devMode := os.Getenv("ENV") == "dev"
 	router := httprouter.New()
 	router.GlobalOPTIONS = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		allowCORS(nil)(w, r, nil)
@@ -178,26 +206,57 @@ func Initialize(config *Config) (http.Handler, error) {
 		return nil, err
 	}
 
+	origins := []string{config.HTTP.Protocol + "://" + config.HTTP.Origin}
+	if devMode {
+		origins = []string{config.HTTP.Protocol + "://" + config.HTTP.Listen}
+	}
+
 	wan, err := webauthn.New(&webauthn.Config{
 		RPDisplayName: config.Name,
 		RPID:          config.HTTP.Origin,
-		RPOrigins:     []string{config.HTTP.Protocol + "://" + config.HTTP.Origin},
-		// For dev:
-		// RPOrigins:     []string{config.HTTP.Protocol + "://" + config.HTTP.Listen},
+		RPOrigins:     origins,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	serverRoot, err := fs.Sub(staticFiles, "static")
-	if err != nil {
-		log.Fatal(err)
+	push.Initialize(config.WebPush)
+
+	var assetRoot http.FileSystem
+	if devMode {
+		pwd, _ := os.Getwd()
+		dir := pwd + "/internal/server/static/"
+		logrus.Warnf("serving static assets from %s", dir)
+		assetRoot = http.Dir(dir)
+	} else {
+		subfs, err := fs.Sub(staticFiles, "static")
+		if err != nil {
+			log.Fatal(err)
+		}
+		assetRoot = http.FS(subfs)
 	}
 
-	router.ServeFiles("/static/*filepath", http.FS(serverRoot))
+	router.ServeFiles("/static/*filepath", assetRoot)
 	router.GET("/login", renderTemplate(loginTemplate))
 	router.GET("/", auth.RequireAuthOrRedirect(renderTemplate(indexTemplate), "/login"))
-	router.GET("/admin", auth.RequireAdmin(renderTemplate(adminTemplate)))
+	router.GET("/admin-serviceworker.js", func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+		f, err := assetRoot.Open("/admin-serviceworker.js")
+		if err != nil {
+			sendError(w, err)
+			return
+		}
+
+		buf, err := io.ReadAll(f)
+		if err != nil {
+			sendError(w, err)
+			return
+		}
+
+		w.Header().Add("content-type", "application/javascript")
+		w.WriteHeader(200)
+		w.Write(buf)
+	})
+	router.GET("/admin", auth.RequireAdmin(renderTemplate(bytes.ReplaceAll(adminTemplate, []byte("$PUSH_KEY$"), []byte(config.WebPush.Key.Public)))))
 
 	// regular api
 	router.POST("/api/login", auth.LoginHandler)
@@ -211,6 +270,8 @@ func Initialize(config *Config) (http.Handler, error) {
 	router.POST("/api/user", allowCORS(auth.RequireAdmin(auth.Enforce2FA(createUser))))
 	router.POST("/api/user/:id", allowCORS(auth.RequireAdmin(auth.Enforce2FA(updateUser))))
 	router.DELETE("/api/user/:id", allowCORS(auth.RequireAdmin(auth.Enforce2FA(deleteUser))))
+	router.POST("/api/push/subscribe", allowCORS(auth.RequireAdmin(auth.Enforce2FA(createSubscription))))
+	router.POST("/api/push/unsubscribe", allowCORS(auth.RequireAdmin(auth.Enforce2FA(deleteSubscription))))
 
 	return auth.Route(wan, _db, router), nil
 }

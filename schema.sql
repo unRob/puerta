@@ -9,7 +9,8 @@ CREATE TABLE user(
   max_ttl TEXT DEFAULT "30d", -- golang auth.TTL
   schedule TEXT, -- golang auth.UserSchedule
   second_factor BOOLEAN DEFAULT 1,
-  is_admin BOOLEAN DEFAULT 0 NOT NULL
+  is_admin BOOLEAN DEFAULT 0 NOT NULL,
+  receives_notifications BOOLEAN DEFAULT 0 NOT NULL
 );
 
 CREATE INDEX user_id ON user(id);
@@ -43,6 +44,19 @@ CREATE TABLE log(
   user_agent varchar(255) NOT NULL
 );
 
+CREATE TABLE subscription(
+  user INTEGER NOT NULL,
+  data TEXT NOT NULL,
+  FOREIGN KEY(user) REFERENCES user(id) ON DELETE CASCADE
+);
+
+CREATE INDEX subscription_user ON subscription(user);
+
 CREATE INDEX log_timestamp_idx ON log(timestamp);
 CREATE INDEX log_timestamp_error_idx ON log(timestamp,error);
 CREATE INDEX log_timestamp_user_idx ON log(timestamp,user);
+
+CREATE TABLE migrations (
+  name TEXT NOT NULL,
+  applied TEXT NOT NULL
+);

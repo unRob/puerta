@@ -6,18 +6,12 @@ import (
 	"fmt"
 	"os"
 
-	"git.rob.mx/nidito/chinampa"
 	"git.rob.mx/nidito/chinampa/pkg/command"
 	"git.rob.mx/nidito/puerta/internal/door"
 	"github.com/sirupsen/logrus"
 )
 
-func init() {
-	chinampa.Register(setupHueCommand)
-	chinampa.Register(testHueCommand)
-}
-
-var setupHueCommand = &command.Command{
+var SetupHueCommand = &command.Command{
 	Path:        []string{"hue", "setup"},
 	Summary:     "Creates a local hue user and finds out available plugs",
 	Description: "",
@@ -53,7 +47,7 @@ var setupHueCommand = &command.Command{
 	},
 }
 
-var testHueCommand = &command.Command{
+var TestHueCommand = &command.Command{
 	Path:        []string{"hue", "test"},
 	Summary:     "Uses a given configuration to open door",
 	Description: "",

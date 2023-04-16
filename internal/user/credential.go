@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 
 	"github.com/go-webauthn/webauthn/webauthn"
+	"github.com/upper/db/v4"
 )
 
 type Credential struct {
@@ -22,4 +23,8 @@ func (c *Credential) AsWebAuthn() webauthn.Credential {
 		}
 	}
 	return *c.wan
+}
+
+func (c *Credential) Store(sess db.Session) db.Store {
+	return sess.Collection("credential")
 }

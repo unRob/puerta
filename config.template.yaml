@@ -12,3 +12,11 @@ adapter:
 http:
   listen: "localhost:8080"
   origin: http://localhost:8080
+  protocol: http
+
+push:
+  key:
+    # https://github.com/SherClockHolmes/webpush-go#generating-vapid-keys
+    # wish it was simpler to export base64-url-encoded raw bytes from openssl, but alas
+    private:
+    public:

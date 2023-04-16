@@ -7,9 +7,10 @@ import (
 
 	"git.rob.mx/nidito/chinampa"
 	"git.rob.mx/nidito/chinampa/pkg/runtime"
-	_ "git.rob.mx/nidito/puerta/cmd/admin"
-	_ "git.rob.mx/nidito/puerta/cmd/hue"
-	_ "git.rob.mx/nidito/puerta/cmd/server"
+	"git.rob.mx/nidito/puerta/cmd/admin"
+	"git.rob.mx/nidito/puerta/cmd/db"
+	"git.rob.mx/nidito/puerta/cmd/hue"
+	"git.rob.mx/nidito/puerta/cmd/server"
 	"github.com/sirupsen/logrus"
 )
 
@@ -31,6 +32,15 @@ func main() {
 		Summary:     "opens the door to my house",
 		Description: "Does other door related stuff too.",
 	}
+
+	chinampa.Register(
+		admin.UserAddCommand,
+		admin.UserReset2faCommand,
+		hue.SetupHueCommand,
+		hue.TestHueCommand,
+		server.ServerCommand,
+		db.MigrationsCommand,
+	)
 
 	if err := chinampa.Execute(cfg); err != nil {
 		logrus.Errorf("total failure: %s", err)
