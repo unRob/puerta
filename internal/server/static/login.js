@@ -34,7 +34,17 @@ function submit(evt){
   clearStatus()
 
   Login().then(() => {
-    window.location = "/";
+    let next = "/"
+    try {
+      const follow = window.location.search.replace("?next=", "")
+      if (follow != "") {
+        next = follow
+      }
+    } catch (err) {
+      console.error(`Could not find next path to follow: ${err}`)
+    }
+
+    window.location = next;
   }).catch((err) => {
     form.classList.add("failed")
     document.querySelector('.error').innerText = err

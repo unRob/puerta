@@ -296,20 +296,37 @@ window.addEventListener("load", async function() {
     scope: "/"
   })
 
-  const sub = await reg.pushManager.getSubscription()
-  console.log(`registered SW, push sub: ${sub}`, reg)
+  try {
+    sub = await reg.pushManager.getSubscription()
+    if (sub) {
+      pnb.classList.add("subscribed")
+      pnb.innerHTML = "🔕"
+    } else {
+      pnb.classList.remove("subscribed")
+      pnb.innerHTML = "🔔"
+    }
+  } catch(err) {
+    console.error("Could not get pushmanager subscription", err)
+  }
 
   const pnb = document.querySelector("#push-notifications")
 
-  if (sub) {
-    pnb.classList.add("subscribed")
-    pnb.innerHTML = "🔕"
-  } else {
-    pnb.classList.remove("subscribed")
-    pnb.innerHTML = "🔔"
-  }
-
   pnb.addEventListener('click', async evt =>{
+    let sub
+    try {
+      sub = await reg.pushManager.getSubscription()
+    } catch(err) {
+      console.error("Could not get pushmanager subscription", err)
+    }
+
+    if (sub) {
+      pnb.classList.add("subscribed")
+      pnb.innerHTML = "🔕"
+    } else {
+      pnb.classList.remove("subscribed")
+      pnb.innerHTML = "🔔"
+    }
+
     if (!pnb.classList.contains("subscribed")) {
       if (await createPushSubscription()) {
         pnb.classList.add("subscribed")

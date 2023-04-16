@@ -82,6 +82,17 @@ func RequireAuthOrRedirect(handler httprouter.Handle, target string) httprouter.
 	})
 }
 
+func RequireAdminOrRedirect(handler httprouter.Handle, target string) httprouter.Handle {
+	return withUser(func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+		if req.Context().Value(constants.ContextUser) == nil {
+			http.Redirect(w, req, target, http.StatusTemporaryRedirect)
+			return
+		}
+
+		handler(w, req, ps)
+	})
+}
+
 func RegisterSecondFactor() httprouter.Handle {
 	return RequireAuth(func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 		u := user.FromContext(req)

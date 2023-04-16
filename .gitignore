@@ -3,3 +3,5 @@ puerta.db
 local.db
 config.joao.yaml
 test.db
+puerta.db-shm
+puerta.db-wal

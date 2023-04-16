@@ -256,7 +256,7 @@ func Initialize(config *Config) (http.Handler, error) {
 		w.WriteHeader(200)
 		w.Write(buf)
 	})
-	router.GET("/admin", auth.RequireAdmin(renderTemplate(bytes.ReplaceAll(adminTemplate, []byte("$PUSH_KEY$"), []byte(config.WebPush.Key.Public)))))
+	router.GET("/admin", auth.RequireAdminOrRedirect(renderTemplate(bytes.ReplaceAll(adminTemplate, []byte("$PUSH_KEY$"), []byte(config.WebPush.Key.Public))), "/login?next=/admin"))
 
 	// regular api
 	router.POST("/api/login", auth.LoginHandler)
