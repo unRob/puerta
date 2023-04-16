@@ -60,6 +60,7 @@ func userFromRequest(r *http.Request, u *user.User) (*user.User, error) {
 	u.Expires = res.Expires
 	u.Greeting = res.Greeting
 	u.IsAdmin = res.IsAdmin
+	u.IsNotified = res.IsNotified
 	u.Require2FA = res.Require2FA
 	u.Schedule = res.Schedule
 	u.TTL = res.TTL
