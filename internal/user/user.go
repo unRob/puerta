@@ -126,7 +126,7 @@ func (user *User) IsAllowed(t time.Time) error {
 		return fmt.Errorf("usuario expirado, avísale a Roberto")
 	}
 
-	if user.Schedule != nil && !user.Schedule.AllowedAt(time.Now()) {
+	if user.Schedule != nil && !user.Schedule.AllowedAt(t) {
 		return fmt.Errorf("accesso denegado, intente nuevamente en otro momento")
 	}
 

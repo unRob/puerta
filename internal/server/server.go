@@ -48,12 +48,12 @@ type HTTPConfig struct {
 }
 
 type Config struct {
-	Name    string         `yaml:"name"`
-	Adapter map[string]any `yaml:"adapter"`
-	HTTP    *HTTPConfig    `yaml:"http"`
-	WebPush *push.Config   `yaml:"push"`
-
-	DB string `yaml:"db"`
+	Name     string         `yaml:"name"`
+	Adapter  map[string]any `yaml:"adapter"`
+	HTTP     *HTTPConfig    `yaml:"http"`
+	WebPush  *push.Config   `yaml:"push"`
+	Timezone string         `yaml:"timezone"`
+	DB       string         `yaml:"db"`
 }
 
 func ConfigDefaults(dbPath string) *Config {
@@ -146,7 +146,7 @@ func notifyAdmins(message string) {
 	for _, sub := range subs {
 		err := push.Notify(message, sub)
 		if err != nil {
-			logrus.Errorf("could not push notification to subscription %s: %s", sub.ID, err)
+			logrus.Errorf("could not push notification to subscription %s: %s", sub.ID(), err)
 		}
 	}
 }
@@ -155,14 +155,14 @@ func rex(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	var err error
 	u := user.FromContext(r)
 
-	defer func() {
-		_, sqlErr := _db.Collection("log").Insert(newAuditLog(r, err))
+	defer func(req *http.Request, err error) {
+		_, sqlErr := _db.Collection("log").Insert(newAuditLog(req, err))
 		if sqlErr != nil {
 			logrus.Errorf("could not record error log: %s", sqlErr)
 		}
-	}()
+	}(r, err)
 
-	err = u.IsAllowed(time.Now())
+	err = u.IsAllowed(time.Now().In(TZ))
 	if err != nil {
 		logrus.Errorf("Denying rex to %s: %s", u.Name, err)
 		http.Error(w, "Access denied", http.StatusForbidden)
@@ -182,6 +182,7 @@ func rex(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 }
 
 var _db db.Session
+var TZ *time.Location = time.UTC
 
 func Initialize(config *Config) (http.Handler, error) {
 	devMode := os.Getenv("ENV") == "dev"
@@ -189,6 +190,14 @@ func Initialize(config *Config) (http.Handler, error) {
 	router.GlobalOPTIONS = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		allowCORS(nil)(w, r, nil)
 	})
+
+	if config.Timezone != "" {
+		mtz, err := time.LoadLocation(config.Timezone)
+		if err != nil {
+			return nil, fmt.Errorf("Unknown timezone %s", config.Timezone)
+		}
+		TZ = mtz
+	}
 
 	db := sqlite.ConnectionURL{
 		Database: config.DB,

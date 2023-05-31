@@ -1,4 +1,5 @@
 name: Casa de alguien
+timezone: America/Mexico_City
 
 adapter:
   kind: dry-run
