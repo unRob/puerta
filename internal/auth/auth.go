@@ -34,6 +34,7 @@ func requestAuth(w http.ResponseWriter, status int) {
 }
 
 func LoginHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+
 	err := req.ParseForm()
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
@@ -52,12 +53,15 @@ func LoginHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params
 	}
 
 	if err := user.Login(password); err != nil {
+
 		code := http.StatusBadRequest
 		status := http.StatusText(code)
-		if err, ok := err.(errors.InvalidCredentials); ok {
+		if err, ok := err.(*errors.InvalidCredentials); ok {
 			code = err.Code()
 			status = err.Error()
 			err.Log()
+		} else {
+			logrus.Errorf("could not login %s: %s", username, err.Error())
 		}
 		http.Error(w, status, code)
 		return
@@ -65,7 +69,9 @@ func LoginHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params
 
 	sess, err := NewSession(user, _db.Collection("session"))
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Could not create a session: %s", err), http.StatusInternalServerError)
+		err = fmt.Errorf("Could not create a session: %s", err)
+		logrus.Error(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
