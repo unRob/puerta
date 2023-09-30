@@ -291,12 +291,22 @@ window.addEventListener("load", async function() {
 
   switchTab()
 
-  const reg = await navigator.serviceWorker.register("/admin-serviceworker.js", {
-    type: "module",
-    scope: "/"
-  })
+  const pnb = document.querySelector("#push-notifications")
+
+  let reg
+  try {
+    reg = await navigator.serviceWorker.register("/admin-serviceworker.js", {
+      type: "module",
+      scope: "/"
+    })
+  } catch(err) {
+    console.log(`Could not register serviceworker: ${err}`)
+    pnb.style.display = "none"
+    return
+  }
 
   try {
+    let sub
     sub = await reg.pushManager.getSubscription()
     if (sub) {
       pnb.classList.add("subscribed")
@@ -309,7 +319,6 @@ window.addEventListener("load", async function() {
     console.error("Could not get pushmanager subscription", err)
   }
 
-  const pnb = document.querySelector("#push-notifications")
 
   pnb.addEventListener('click', async evt =>{
     let sub

@@ -53,7 +53,6 @@ func LoginHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params
 	}
 
 	if err := user.Login(password); err != nil {
-
 		code := http.StatusBadRequest
 		status := http.StatusText(code)
 		if err, ok := err.(*errors.InvalidCredentials); ok {
