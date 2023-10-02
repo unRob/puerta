@@ -71,8 +71,10 @@ func NewSession(user *user.User, table db.Collection) (*Session, error) {
 		Expires: user.TTL.FromNow(),
 	}
 
-	// delete previous sessions
-	table.Find(db.Cond{"user": user.ID}).Delete()
+	if !user.IsAdmin {
+		// delete previous sessions
+		table.Find(db.Cond{"user": user.ID}).Delete()
+	}
 	// insert new one
 	_, err := table.Insert(sess)
 	return sess, err

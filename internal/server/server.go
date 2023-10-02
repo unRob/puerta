@@ -12,6 +12,7 @@ import (
 	"mime"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"git.rob.mx/nidito/puerta/internal/auth"
@@ -223,7 +224,7 @@ func Initialize(config *Config) (http.Handler, error) {
 
 	wan, err := webauthn.New(&webauthn.Config{
 		RPDisplayName: config.Name,
-		RPID:          config.HTTP.Origin,
+		RPID:          strings.Split(config.HTTP.Origin, ":")[0],
 		RPOrigins:     origins,
 	})
 	if err != nil {

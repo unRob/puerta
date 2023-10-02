@@ -55,10 +55,10 @@ func LoginHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params
 	if err := user.Login(password); err != nil {
 		code := http.StatusBadRequest
 		status := http.StatusText(code)
-		if err, ok := err.(*errors.InvalidCredentials); ok {
-			code = err.Code()
-			status = err.Error()
-			err.Log()
+		if invalidCreds, ok := err.(*errors.InvalidCredentials); ok {
+			code = invalidCreds.Code()
+			status = invalidCreds.Error()
+			invalidCreds.Log()
 		} else {
 			logrus.Errorf("could not login %s: %s", username, err.Error())
 		}

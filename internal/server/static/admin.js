@@ -299,6 +299,7 @@ window.addEventListener("load", async function() {
       type: "module",
       scope: "/"
     })
+    console.info(`Registered service worker`, reg)
   } catch(err) {
     console.log(`Could not register serviceworker: ${err}`)
     pnb.style.display = "none"
@@ -317,6 +318,7 @@ window.addEventListener("load", async function() {
     }
   } catch(err) {
     console.error("Could not get pushmanager subscription", err)
+    pnb.style.display = "none"
   }
 
 
@@ -326,14 +328,6 @@ window.addEventListener("load", async function() {
       sub = await reg.pushManager.getSubscription()
     } catch(err) {
       console.error("Could not get pushmanager subscription", err)
-    }
-
-    if (sub) {
-      pnb.classList.add("subscribed")
-      pnb.innerHTML = "🔕"
-    } else {
-      pnb.classList.remove("subscribed")
-      pnb.innerHTML = "🔔"
     }
 
     if (!pnb.classList.contains("subscribed")) {
@@ -346,6 +340,14 @@ window.addEventListener("load", async function() {
         pnb.classList.remove("subscribed")
         pnb.innerHTML = "🔔"
       }
+    }
+
+    if (sub) {
+      pnb.classList.add("subscribed")
+      pnb.innerHTML = "🔕"
+    } else {
+      pnb.classList.remove("subscribed")
+      pnb.innerHTML = "🔔"
     }
   })
 })

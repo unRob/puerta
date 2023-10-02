@@ -38,7 +38,9 @@ export async function withAuth(target, config) {
   if (step == "register") {
     // server told us to register new credentials
     // we try to do that
-    await register(challenge, target)
+    await new Promise((res,rej) => {
+      register(challenge, target).then(res).catch(rej)
+    })
     // and retry the original request if successful
     return await new Promise((res, rej) => {
       setTimeout(async () => {
@@ -51,7 +53,9 @@ export async function withAuth(target, config) {
     })
   } else if (step == "login") {
     // server told us to use existing credential for request
-    return await login(challenge, target, config)
+    return await new Promise((res,rej) => {
+      return login(challenge, target, config).then(res).catch(rej)
+    })
   }
 
   throw `Unknown webauthn step: <${step}>`
