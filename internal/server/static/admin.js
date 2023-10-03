@@ -321,54 +321,70 @@ window.addEventListener("load", async function() {
     pnb.style.display = "none"
   }
 
-
-  pnb.addEventListener('click', async evt =>{
-    let sub
-    try {
-      sub = await reg.pushManager.getSubscription()
-    } catch(err) {
-      console.error("Could not get pushmanager subscription", err)
-    }
-
-    if (!pnb.classList.contains("subscribed")) {
-      if (await createPushSubscription()) {
-        pnb.classList.add("subscribed")
-        pnb.innerHTML = "🔕"
-      }
-    } else {
-      if (await deletePushSubscription()) {
-        pnb.classList.remove("subscribed")
-        pnb.innerHTML = "🔔"
-      }
-    }
-
-    if (sub) {
-      pnb.classList.add("subscribed")
-      pnb.innerHTML = "🔕"
-    } else {
-      pnb.classList.remove("subscribed")
-      pnb.innerHTML = "🔔"
-    }
-  })
+  pnb.addEventListener('click', handleSubscribeToggle)
 })
 
-async function createPushSubscription() {
-  const registration = await navigator.serviceWorker.getRegistration()
-  const result = await Notification.requestPermission();
+async function handleSubscribeToggle(evt) {
+  const pnb = document.querySelector("#push-notifications")
+
+  evt.preventDefault()
+  let reg
+  try {
+    reg = await navigator.serviceWorker.getRegistration()
+  } catch(err) {
+    console.error("Could not get sw registration", err)
+    return
+  }
+  console.info("got registration")
+
+  let sub
+  try {
+    sub = await reg.pushManager.getSubscription()
+  } catch(err) {
+    console.error("Could not get pushmanager subscription", err)
+    return
+  }
+  console.info("got subscription: ", sub)
+
+  if (!pnb.classList.contains("subscribed")) {
+    console.info("creating subscription")
+    try {
+      await createPushSubscription(reg)
+      pnb.classList.add("subscribed")
+      pnb.innerHTML = "🔕"
+    } catch (err) {
+      console.error("could not subscribe", err)
+    }
+  } else {
+    console.info("deleting subscription")
+    try {
+      await deletePushSubscription(reg, sub)
+      pnb.classList.remove("subscribed")
+      pnb.innerHTML = "🔔"
+    } catch(err) {
+      console.error("could not unsubscribe", err)
+    }
+  }
+}
+
+
+async function createPushSubscription(registration) {
+  const result = await new Promise((res, rej) => Notification.requestPermission().then(res).catch(rej))
   if (result == "denied") {
+    console.error("permission to subscribe denied")
     return false
   }
+  console.info("allowed to subscribe")
   const subscription = await registration.pushManager.subscribe({
     userVisibleOnly: true,
     applicationServerKey: urlB64ToUint8Array(window._PushKey)
   })
+  console.info("subscribed to push notification service")
 
   return await CreateSubscription(JSON.stringify(subscription.toJSON()))
 }
 
-async function deletePushSubscription() {
-  const registration = await navigator.serviceWorker.getRegistration()
-  const subscription = await registration.pushManager.getSubscription()
+async function deletePushSubscription(registration, subscription) {
   if (await subscription.unsubscribe()) {
     return await DeleteSubscription(JSON.stringify(subscription.toJSON()))
   }
